@@ -1,0 +1,624 @@
+{% extends "base.html" %}
+
+{% block title %}Default Packages - AUGSD Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4">
+        <a href="/admin" class="hover:text-primary">Admin Dashboard</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Default Packages</span>
+    </div>
+
+    <!-- Header -->
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Default Packages Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Manage course packages for different years and branches</p>
+        </div>
+        <div class="flex space-x-2">
+            <label
+                class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
+                <i class="fas fa-upload mr-2"></i>Upload JSON
+                <input type="file" class="hidden" accept=".json" onchange="showUploadModal(this)">
+            </label>
+            <button onclick="showCreatePackageModal()"
+                class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-plus mr-2"></i>New Package
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div
+            class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:border-blue-200 transition-colors group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors">
+                    <i class="fas fa-box text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Packages</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-0.5" id="stat-total">-</p>
+                </div>
+            </div>
+        </div>
+        <div
+            class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:border-green-200 transition-colors group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-green-50 text-green-600 group-hover:bg-green-100 transition-colors">
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Academic Years</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-0.5" id="stat-years">-</p>
+                </div>
+            </div>
+        </div>
+        <div
+            class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:border-purple-200 transition-colors group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-100 transition-colors">
+                    <i class="fas fa-code-branch text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Unique Branches</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-0.5" id="stat-branches">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters & Search -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8 overflow-hidden">
+        <div class="p-4 sm:p-6 bg-gray-50/50 border-b border-gray-100">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center space-x-2 text-gray-700">
+                    <i class="fas fa-filter text-gray-400"></i>
+                    <span class="text-sm font-semibold uppercase tracking-wider">Filters</span>
+                </div>
+                <button onclick="clearFilters()"
+                    class="text-xs text-primary hover:text-blue-700 font-medium flex items-center">
+                    <i class="fas fa-sync-alt mr-1.5"></i>Reset Filters
+                </button>
+            </div>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Academic
+                        Year</label>
+                    <div class="relative">
+                        <select id="filter-year" onchange="applyFilters()"
+                            class="block w-full pl-3 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none">
+                            <option value="">All Years</option>
+                        </select>
+                        <div
+                            class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Branch</label>
+                    <div class="relative">
+                        <select id="filter-branch" onchange="applyFilters()"
+                            class="block w-full pl-3 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none">
+                            <option value="">All Branches</option>
+                        </select>
+                        <div
+                            class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:col-span-6">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Search
+                        Courses</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400 text-sm"></i>
+                        </div>
+                        <input type="text" id="search-input" oninput="applyFilters()"
+                            placeholder="Search by course code (e.g. MATH F111)..."
+                            class="block w-full pl-10 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Packages List -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">Packages</h2>
+            <span id="results-count" class="text-sm text-gray-500"></span>
+        </div>
+        <div id="packages-list" class="p-6 space-y-12">
+            <div class="p-8 text-center text-gray-500">
+                <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                <p>Loading packages...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Package Modal -->
+<div id="package-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900" id="modal-title">Create Package</h3>
+                <button onclick="hidePackageModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <form id="package-form" class="p-6 space-y-4">
+            <input type="hidden" id="package-id" value="">
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Year <span
+                            class="text-red-500">*</span></label>
+                    <input type="number" id="package-year" required min="2000" max="2100"
+                        class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                        placeholder="2025">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Branch <span
+                            class="text-red-500">*</span></label>
+                    <input type="text" id="package-branch" required maxlength="100"
+                        class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                        placeholder="A1">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Course Codes <span
+                        class="text-red-500">*</span></label>
+                <textarea id="package-courses" required rows="8"
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+                    placeholder="MATH F101&#10;PHY F101&#10;CHEM F101&#10;(one per line)"></textarea>
+                <p class="mt-1 text-xs text-gray-500">Enter one course code per line</p>
+            </div>
+
+            <div class="flex space-x-3 pt-4">
+                <button type="button" onclick="hidePackageModal()"
+                    class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Save Package
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Upload JSON Modal -->
+<div id="upload-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Upload Packages JSON</h3>
+                <button onclick="hideUploadModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 class="text-sm font-medium text-blue-900 mb-2">Expected JSON Format:</h4>
+                <pre class="text-xs text-blue-800 font-mono overflow-x-auto">{
+  "2025": {
+    "A1, A2, A3": ["MATH F101", "PHY F101"],
+    "B1, B2": ["CHEM F101", "BIO F101"]
+  },
+  "2026": {
+    "A1": ["CS F111"]
+  }
+}</pre>
+            </div>
+
+            <div>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="upload-overwrite"
+                        class="rounded border-gray-300 text-primary focus:ring-primary">
+                    <span class="text-sm text-gray-700">Overwrite existing packages for affected years</span>
+                </label>
+                <p class="ml-6 text-xs text-gray-500">If checked, all packages for years in the JSON will be deleted
+                    before upload</p>
+            </div>
+
+            <div id="upload-preview" class="hidden">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Preview:</h4>
+                <div class="border border-gray-200 rounded-lg p-4 max-h-48 overflow-y-auto">
+                    <div id="upload-preview-content" class="text-sm text-gray-600"></div>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-4">
+                <button type="button" onclick="hideUploadModal()"
+                    class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" onclick="confirmUpload()"
+                    class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div id="loading-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl p-8 max-w-sm w-full mx-4">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Processing...</h3>
+            <p class="text-sm text-gray-600">Please wait while we upload your packages</p>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 text-center mb-2">Delete Package?</h3>
+        <p class="text-sm text-gray-600 text-center mb-6" id="delete-message"></p>
+        <div class="flex space-x-3">
+            <button type="button" onclick="hideDeleteModal()"
+                class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" onclick="confirmDelete()"
+                class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                Delete
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allPackages = [];
+    let filteredPackages = [];
+    let uploadFile = null;
+    let deletePackageId = null;
+
+    async function loadPackages() {
+        try {
+            const res = await api('/api/admin/packages?limit=500');
+            if (res && res.ok) {
+                allPackages = await res.json();
+                filteredPackages = [...allPackages];
+
+                // Update stats
+                document.getElementById('stat-total').textContent = allPackages.length;
+
+                const uniqueYears = new Set(allPackages.map(p => p.year));
+                document.getElementById('stat-years').textContent = uniqueYears.size;
+
+                const uniqueBranches = new Set(allPackages.map(p => p.branch));
+                document.getElementById('stat-branches').textContent = uniqueBranches.size;
+
+                // Populate year filter
+                const yearSelect = document.getElementById('filter-year');
+                yearSelect.innerHTML = '<option value="">All Years</option>';
+                [...uniqueYears].sort((a, b) => b - a).forEach(year => {
+                    yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
+                });
+
+                // Populate branch filter
+                const branchSelect = document.getElementById('filter-branch');
+                branchSelect.innerHTML = '<option value="">All Branches</option>';
+                [...uniqueBranches].sort().forEach(branch => {
+                    branchSelect.innerHTML += `<option value="${branch}">${branch}</option>`;
+                });
+
+                renderPackages();
+            }
+        } catch (error) {
+            console.error('Error loading packages:', error);
+            document.getElementById('packages-list').innerHTML = `
+            <div class="p-8 text-center text-red-600">
+                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                <p>Error loading packages. Please try again.</p>
+            </div>
+        `;
+        }
+    }
+
+    function applyFilters() {
+        const yearFilter = document.getElementById('filter-year').value;
+        const branchFilter = document.getElementById('filter-branch').value;
+        const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+
+        filteredPackages = allPackages.filter(pkg => {
+            if (yearFilter && pkg.year !== parseInt(yearFilter)) return false;
+            if (branchFilter && pkg.branch !== branchFilter) return false;
+            if (searchQuery && !pkg.course_codes.some(c => c.toLowerCase().includes(searchQuery))) return false;
+            return true;
+        });
+
+        renderPackages();
+    }
+
+    function clearFilters() {
+        document.getElementById('filter-year').value = '';
+        document.getElementById('filter-branch').value = '';
+        document.getElementById('search-input').value = '';
+        applyFilters();
+    }
+
+    function renderPackages() {
+        const container = document.getElementById('packages-list');
+        document.getElementById('results-count').textContent = `${filteredPackages.length} result(s)`;
+
+        if (filteredPackages.length === 0) {
+            container.innerHTML = `
+            <div class="p-12 text-center text-gray-500">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                    <i class="fas fa-box-open text-2xl text-gray-400"></i>
+                </div>
+                <p class="text-lg font-medium text-gray-900">No packages found</p>
+                <p class="mt-1">Try adjusting your filters or create a new package.</p>
+                <button onclick="clearFilters()" class="mt-4 text-primary hover:underline font-medium">
+                    Clear all filters
+                </button>
+            </div>
+        `;
+            return;
+        }
+
+        // Group by year
+        const grouped = filteredPackages.reduce((acc, pkg) => {
+            if (!acc[pkg.year]) acc[pkg.year] = [];
+            acc[pkg.year].push(pkg);
+            return acc;
+        }, {});
+
+        // Sort years descending
+        const years = Object.keys(grouped).sort((a, b) => b - a);
+
+        container.innerHTML = years.map(year => `
+            <div class="space-y-6">
+                <div class="flex items-center space-x-4">
+                    <h3 class="text-xl font-bold text-gray-900">${year}</h3>
+                    <div class="flex-grow h-px bg-gray-200"></div>
+                    <span class="text-sm font-medium text-gray-500 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+                        ${grouped[year].length} Package${grouped[year].length !== 1 ? 's' : ''}
+                    </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${grouped[year].map(pkg => `
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col group">
+                            <div class="p-5 flex-grow">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex space-x-2">
+                                        <span class="px-2.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-bold rounded-md uppercase tracking-wider border border-purple-100">
+                                            ${pkg.branch}
+                                        </span>
+                                    </div>
+                                    <span class="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
+                                        <i class="fas fa-book-open mr-1 text-gray-400"></i>${pkg.course_codes.length} Courses
+                                    </span>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Course List</h4>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        ${pkg.course_codes.slice(0, 8).map(code => `
+                                            <span class="px-2 py-0.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-medium rounded shadow-sm group-hover:border-gray-300 transition-colors">${code}</span>
+                                        `).join('')}
+                                        ${pkg.course_codes.length > 8 ? `
+                                            <span class="px-2 py-0.5 bg-gray-50 border border-gray-200 text-gray-400 text-[10px] font-medium rounded">+${pkg.course_codes.length - 8} more</span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-end space-x-4 transition-colors group-hover:bg-gray-100/50">
+                                <button onclick="editPackage(${JSON.stringify(pkg).replace(/"/g, '&quot;')})" 
+                                    class="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors flex items-center">
+                                    <i class="fas fa-edit mr-1.5"></i>Edit
+                                </button>
+                                <button onclick="deletePackage('${pkg.id}', '${pkg.year}', '${pkg.branch}')" 
+                                    class="text-red-600 hover:text-red-800 text-sm font-semibold transition-colors flex items-center">
+                                    <i class="fas fa-trash mr-1.5"></i>Delete
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function showCreatePackageModal() {
+        document.getElementById('modal-title').textContent = 'Create Package';
+        document.getElementById('package-id').value = '';
+        document.getElementById('package-form').reset();
+        document.getElementById('package-modal').classList.remove('hidden');
+    }
+
+    function editPackage(pkg) {
+        document.getElementById('modal-title').textContent = 'Edit Package';
+        document.getElementById('package-id').value = pkg.id;
+        document.getElementById('package-year').value = pkg.year;
+        document.getElementById('package-branch').value = pkg.branch;
+        document.getElementById('package-courses').value = pkg.course_codes.join('\n');
+        document.getElementById('package-modal').classList.remove('hidden');
+    }
+
+    function hidePackageModal() {
+        document.getElementById('package-modal').classList.add('hidden');
+        document.getElementById('package-form').reset();
+    }
+
+    document.getElementById('package-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const packageId = document.getElementById('package-id').value;
+        const year = parseInt(document.getElementById('package-year').value);
+        const branch = document.getElementById('package-branch').value.trim();
+        const coursesText = document.getElementById('package-courses').value;
+        const course_codes = coursesText.split('\n').map(c => c.trim()).filter(c => c);
+
+        if (course_codes.length === 0) {
+            alert('Please enter at least one course code');
+            return;
+        }
+
+        const data = { year, branch, course_codes };
+
+        try {
+            let res;
+            if (packageId) {
+                // Update
+                res = await api(`/api/admin/packages/${packageId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(data),
+                });
+            } else {
+                // Create
+                res = await api('/api/admin/packages', {
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                });
+            }
+
+            if (res && res.ok) {
+                hidePackageModal();
+                loadPackages();
+            } else {
+                const error = await res.json();
+                alert(error.detail || 'Failed to save package');
+            }
+        } catch (error) {
+            alert('Error saving package');
+        }
+    });
+
+    function deletePackage(id, year, branch) {
+        deletePackageId = id;
+        document.getElementById('delete-message').textContent =
+            `Are you sure you want to delete the package for ${year} - ${branch}?`;
+        document.getElementById('delete-modal').classList.remove('hidden');
+    }
+
+    function hideDeleteModal() {
+        document.getElementById('delete-modal').classList.add('hidden');
+        deletePackageId = null;
+    }
+
+    async function confirmDelete() {
+        if (!deletePackageId) return;
+
+        try {
+            const res = await api(`/api/admin/packages/${deletePackageId}`, {
+                method: 'DELETE',
+            });
+
+            if (res && res.ok) {
+                hideDeleteModal();
+                loadPackages();
+            } else {
+                const error = await res.json();
+                alert(error.detail || 'Failed to delete package');
+            }
+        } catch (error) {
+            alert('Error deleting package');
+        }
+    }
+
+    function showUploadModal(input) {
+        if (!input.files[0]) return;
+
+        uploadFile = input.files[0];
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+
+                // Generate preview
+                let totalPackages = 0;
+                let preview = '<ul class="space-y-1">';
+                for (const [year, branches] of Object.entries(json)) {
+                    const branchCount = Object.keys(branches).length;
+                    for (const [branchList, courses] of Object.entries(branches)) {
+                        const individualBranches = branchList.split(',').map(b => b.trim()).length;
+                        totalPackages += individualBranches;
+                    }
+                    preview += `<li><strong>${year}:</strong> ${branchCount} branch group(s)</li>`;
+                }
+                preview += '</ul>';
+                preview += `<p class="mt-3 text-sm font-medium">Total packages to create: ${totalPackages}</p>`;
+
+                document.getElementById('upload-preview-content').innerHTML = preview;
+                document.getElementById('upload-preview').classList.remove('hidden');
+                document.getElementById('upload-modal').classList.remove('hidden');
+            } catch (error) {
+                alert('Invalid JSON file: ' + error.message);
+                input.value = '';
+            }
+        };
+
+        reader.readAsText(uploadFile);
+    }
+
+    function hideUploadModal() {
+        document.getElementById('upload-modal').classList.add('hidden');
+        document.getElementById('upload-preview').classList.add('hidden');
+        uploadFile = null;
+    }
+
+    async function confirmUpload() {
+        if (!uploadFile) return;
+
+        const overwrite = document.getElementById('upload-overwrite').checked;
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+
+        hideUploadModal();
+        document.getElementById('loading-modal').classList.remove('hidden');
+
+        try {
+            const res = await fetch(`/api/admin/upload/packages?overwrite=${overwrite}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${getToken()}` },
+                body: formData,
+            });
+
+            document.getElementById('loading-modal').classList.add('hidden');
+
+            if (res.ok) {
+                const result = await res.json();
+                alert(`Success! Created ${result.total_packages} package(s) across ${result.affected_years} year(s)`);
+                loadPackages();
+            } else {
+                const error = await res.json();
+                alert(error.detail || 'Failed to upload packages');
+            }
+        } catch (error) {
+            document.getElementById('loading-modal').classList.add('hidden');
+            alert('Error uploading file');
+        }
+
+        // Reset file input
+        document.querySelector('input[type="file"][accept=".json"]').value = '';
+    }
+
+    // Load packages on page load
+    loadPackages();
+</script>
+{% endblock %}

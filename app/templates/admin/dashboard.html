@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - AUGSD Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p class="mt-1 text-sm text-gray-600">Manage sessions, users, and global data</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-blue-100 text-blue-600">
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Sessions</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="total-sessions">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-green-100 text-green-600">
+                    <i class="fas fa-check-circle text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Active Sessions</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="active-sessions">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-purple-100 text-purple-600">
+                    <i class="fas fa-users text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Users</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="total-users">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-orange-100 text-orange-600">
+                    <i class="fas fa-user-tie text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Staff Users</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="staff-users">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Sessions Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900">Sessions</h2>
+                    <button onclick="showCreateSessionModal()" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-plus mr-2"></i>New Session
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <div id="sessions-list" class="space-y-4">
+                    <div class="text-center py-4 text-gray-500">
+                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <a href="/sessions" class="text-sm text-primary hover:underline">View all sessions →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Data Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900">Global Data Management</h2>
+            </div>
+            <div class="p-6 space-y-4">
+                <!-- Prerequisites Upload -->
+                <div class="p-4 border border-gray-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-gray-900">Prerequisites</h3>
+                            <p class="text-sm text-gray-500">Upload course prerequisites Excel file</p>
+                        </div>
+                        <label class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
+                            <i class="fas fa-upload mr-2"></i>Upload
+                            <input type="file" class="hidden" accept=".xlsx,.xls" onchange="uploadPrerequisites(this)">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Default Packages Upload -->
+                <div class="p-4 border border-gray-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-gray-900">Default Packages</h3>
+                            <p class="text-sm text-gray-500">Manage course packages for branches</p>
+                        </div>
+                        <a href="/admin/packages" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                            <i class="fas fa-cog mr-2"></i>Manage
+                        </a>
+                    </div>
+                </div>
+
+                <!-- User Management Link -->
+                <a href="/admin/users" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-gray-900">User Management</h3>
+                            <p class="text-sm text-gray-500">Create and manage staff accounts</p>
+                        </div>
+                        <i class="fas fa-chevron-right text-gray-400"></i>
+                    </div>
+                </a>
+
+                <!-- Global Settings -->
+                <div class="p-4 border border-gray-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-gray-900">Global Settings</h3>
+                            <p class="text-sm text-gray-500">Configure default values for sessions</p>
+                        </div>
+                        <button onclick="showSettingsModal()" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                            <i class="fas fa-cog mr-2"></i>Configure
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Session Modal -->
+<div id="create-session-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">Create New Session</h3>
+            <button onclick="hideCreateSessionModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="create-session-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Session Name</label>
+                <input type="text" id="session-name" required
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="e.g., First Semester 2024-2025">
+                <p class="mt-1 text-xs text-gray-500">Leave empty to auto-generate with timestamp (DD-MM-YY HH:MM)</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Term Code</label>
+                <input type="text" id="session-term-code" required
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="e.g., 1163">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Career</label>
+                <input type="text" id="session-career" required
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="e.g., FD or 0001">
+            </div>
+            <div class="flex space-x-3 pt-4">
+                <button type="button" onclick="hideCreateSessionModal()"
+                    class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Create Session
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Global Settings Modal -->
+<div id="settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Global Settings</h3>
+                <button onclick="hideSettingsModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <form id="settings-form" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Default Term Code</label>
+                <input type="text" id="settings-term-code" maxlength="20"
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="e.g., 1163">
+                <p class="mt-1 text-xs text-gray-500">Pre-fills new session forms</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Default Career</label>
+                <input type="text" id="settings-career" maxlength="20"
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="e.g., FD or 0001">
+                <p class="mt-1 text-xs text-gray-500">Pre-fills new session forms</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Institution Name</label>
+                <input type="text" id="settings-institution" maxlength="200"
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="e.g., BITS Pilani">
+            </div>
+            <div>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="settings-auto-generate" class="rounded border-gray-300 text-primary focus:ring-primary">
+                    <span class="text-sm text-gray-700">Auto-generate session names with timestamp</span>
+                </label>
+            </div>
+            <div class="flex space-x-3 pt-4">
+                <button type="button" onclick="hideSettingsModal()"
+                    class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Save Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let sessionsData = [];
+let usersData = [];
+let globalSettings = null;
+
+async function loadDashboardData() {
+    try {
+        // Load global settings first
+        const settingsRes = await api('/api/admin/settings');
+        if (settingsRes && settingsRes.ok) {
+            globalSettings = await settingsRes.json();
+        }
+
+        // Load sessions
+        const sessionsRes = await api('/api/sessions');
+        if (sessionsRes && sessionsRes.ok) {
+            sessionsData = await sessionsRes.json();
+            document.getElementById('total-sessions').textContent = sessionsData.length;
+            document.getElementById('active-sessions').textContent = sessionsData.filter(s => s.is_enabled).length;
+            renderSessionsList();
+        }
+
+        // Load users
+        const usersRes = await api('/api/admin/users');
+        if (usersRes && usersRes.ok) {
+            usersData = await usersRes.json();
+            document.getElementById('total-users').textContent = usersData.length;
+            document.getElementById('staff-users').textContent = usersData.filter(u => u.role === 'staff').length;
+        }
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+    }
+}
+
+function renderSessionsList() {
+    const container = document.getElementById('sessions-list');
+    if (sessionsData.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500 py-4">No sessions yet. Create your first session!</p>';
+        return;
+    }
+
+    // Show only recent 5 sessions
+    const recentSessions = sessionsData.slice(0, 5);
+    container.innerHTML = recentSessions.map(session => `
+        <a href="/session/${session.id}" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h4 class="font-medium text-gray-900">${session.name}</h4>
+                    <p class="text-sm text-gray-500">Term: ${session.term_code} | Career: ${session.career}</p>
+                </div>
+                <span class="px-2 py-1 text-xs rounded-full ${session.is_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">
+                    ${session.is_enabled ? 'Active' : 'Disabled'}
+                </span>
+            </div>
+        </a>
+    `).join('');
+}
+
+function generateSessionName() {
+    const now = new Date();
+    
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = String(now.getFullYear()).slice(-2);
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+}
+
+function showCreateSessionModal() {
+    // Pre-fill with global defaults
+    if (globalSettings) {
+        if (globalSettings.default_term_code) {
+            document.getElementById('session-term-code').value = globalSettings.default_term_code;
+        }
+        if (globalSettings.default_career) {
+            document.getElementById('session-career').value = globalSettings.default_career;
+        }
+        if (globalSettings.auto_generate_session_names) {
+            document.getElementById('session-name').value = generateSessionName();
+        }
+    }
+    
+    document.getElementById('create-session-modal').classList.remove('hidden');
+}
+
+function hideCreateSessionModal() {
+    document.getElementById('create-session-modal').classList.add('hidden');
+    document.getElementById('create-session-form').reset();
+}
+
+document.getElementById('create-session-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    let name = document.getElementById('session-name').value.trim();
+    const term_code = document.getElementById('session-term-code').value;
+    const career = document.getElementById('session-career').value;
+
+    // If name is empty and auto-generate is on, use generated name
+    if (!name && globalSettings && globalSettings.auto_generate_session_names) {
+        name = generateSessionName();
+    }
+
+    if (!name) {
+        alert('Please enter a session name');
+        return;
+    }
+
+    try {
+        const res = await api('/api/admin/sessions', {
+            method: 'POST',
+            body: JSON.stringify({ name, term_code, career }),
+        });
+
+        if (res && res.ok) {
+            hideCreateSessionModal();
+            loadDashboardData();
+        } else {
+            const data = await res.json();
+            alert(data.detail || 'Failed to create session');
+        }
+    } catch (error) {
+        alert('Error creating session');
+    }
+});
+
+async function showSettingsModal() {
+    // Load current settings
+    if (!globalSettings) {
+        try {
+            const res = await api('/api/admin/settings');
+            if (res && res.ok) {
+                globalSettings = await res.json();
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    // Pre-fill form
+    if (globalSettings) {
+        document.getElementById('settings-term-code').value = globalSettings.default_term_code || '';
+        document.getElementById('settings-career').value = globalSettings.default_career || '';
+        document.getElementById('settings-institution').value = globalSettings.institution_name || '';
+        document.getElementById('settings-auto-generate').checked = globalSettings.auto_generate_session_names || false;
+    }
+
+    document.getElementById('settings-modal').classList.remove('hidden');
+}
+
+function hideSettingsModal() {
+    document.getElementById('settings-modal').classList.add('hidden');
+    document.getElementById('settings-form').reset();
+}
+
+document.getElementById('settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        default_term_code: document.getElementById('settings-term-code').value.trim() || null,
+        default_career: document.getElementById('settings-career').value.trim() || null,
+        institution_name: document.getElementById('settings-institution').value.trim() || null,
+        auto_generate_session_names: document.getElementById('settings-auto-generate').checked,
+    };
+
+    try {
+        const res = await api('/api/admin/settings', {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+
+        if (res && res.ok) {
+            globalSettings = await res.json();
+            hideSettingsModal();
+            alert('Settings saved successfully!');
+        } else {
+            const error = await res.json();
+            alert(error.detail || 'Failed to save settings');
+        }
+    } catch (error) {
+        alert('Error saving settings');
+    }
+});
+
+async function uploadPrerequisites(input) {
+    if (!input.files[0]) return;
+    
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+
+    try {
+        const res = await fetch('/api/admin/upload/prerequisites', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getToken()}` },
+            body: formData,
+        });
+
+        if (res.ok) {
+            alert('Prerequisites uploaded successfully!');
+        } else {
+            const data = await res.json();
+            alert(data.detail || 'Failed to upload prerequisites');
+        }
+    } catch (error) {
+        alert('Error uploading file');
+    }
+    input.value = '';
+}
+
+// Load data on page load
+loadDashboardData();
+</script>
+{% endblock %}

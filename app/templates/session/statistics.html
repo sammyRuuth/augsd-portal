@@ -1,0 +1,707 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - {{ session.name }} - AUGSD Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Statistics</span>
+    </div>
+
+    <!-- Header -->
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Enrollment Statistics</h1>
+            <p class="mt-1 text-sm text-gray-600">View course enrollment and capacity statistics</p>
+        </div>
+        <div class="mt-4 sm:mt-0 flex space-x-2">
+            <button onclick="exportStats()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                <i class="fas fa-download mr-2"></i>Export CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="mb-4">
+        <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+            <button id="view-sections" onclick="setView('sections')"
+                class="px-4 py-2 text-sm font-medium rounded-md transition-colors bg-primary text-white">
+                <i class="fas fa-list mr-2"></i>By Section
+            </button>
+            <button id="view-courses" onclick="setView('courses')"
+                class="px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-900">
+                <i class="fas fa-book mr-2"></i>By Course
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="p-2.5 rounded-lg bg-blue-100 text-blue-600">
+                    <i class="fas fa-layer-group text-lg"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Sections</p>
+                    <p class="text-xl font-semibold text-gray-900" id="stat-sections">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="p-2.5 rounded-lg bg-green-100 text-green-600">
+                    <i class="fas fa-users text-lg"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Enrolled</p>
+                    <p class="text-xl font-semibold text-gray-900" id="stat-enrolled">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="p-2.5 rounded-lg bg-purple-100 text-purple-600">
+                    <i class="fas fa-chair text-lg"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Capacity</p>
+                    <p class="text-xl font-semibold text-gray-900" id="stat-capacity">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="p-2.5 rounded-lg bg-red-100 text-red-600">
+                    <i class="fas fa-exclamation-triangle text-lg"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Overfilled</p>
+                    <p class="text-xl font-semibold text-gray-900" id="stat-overfilled">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div class="flex flex-col lg:flex-row lg:items-center gap-4">
+            <!-- Search -->
+            <div class="relative flex-1 max-w-md">
+                <input type="text" id="search-query" placeholder="Search courses..."
+                    class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+            </div>
+
+            <!-- Filter Pills -->
+            <div class="flex flex-wrap gap-2 items-center">
+                <!-- Subject Filter -->
+                <select id="subject-filter"
+                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white">
+                    <option value="">All Subjects</option>
+                </select>
+
+                <!-- Component Filter -->
+                <select id="component-filter"
+                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white">
+                    <option value="">All Components</option>
+                    <option value="LEC">Lecture</option>
+                    <option value="TUT">Tutorial</option>
+                    <option value="LAB">Lab</option>
+                    <option value="PRO">Project</option>
+                </select>
+
+                <!-- Status Filter -->
+                <select id="status-filter"
+                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white">
+                    <option value="">All Status</option>
+                    <option value="overfilled">Overfilled</option>
+                    <option value="full">Full</option>
+                    <option value="available">Available</option>
+                </select>
+
+                <!-- Sort By -->
+                <div class="flex items-center gap-1">
+                    <select id="sort-by"
+                        class="px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white">
+                        <option value="enrollment_pct">Fill Rate</option>
+                        <option value="course">Course</option>
+                        <option value="enrolled">Enrolled</option>
+                        <option value="capacity">Capacity</option>
+                    </select>
+                    <button id="sort-order-btn" onclick="toggleSortOrder()" class="p-2 border border-gray-300 rounded-lg hover:bg-gray-50" title="Toggle sort order">
+                        <i class="fas fa-sort-amount-down text-gray-600"></i>
+                    </button>
+                </div>
+
+                <!-- Clear Filters -->
+                <button onclick="clearFilters()" class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                    <i class="fas fa-times mr-1"></i>Clear
+                </button>
+            </div>
+        </div>
+
+        <!-- Active Filters Display -->
+        <div id="active-filters" class="hidden mt-3 pt-3 border-t border-gray-100">
+            <div class="flex flex-wrap gap-2 items-center">
+                <span class="text-xs text-gray-500">Showing:</span>
+                <span id="filter-count" class="text-xs font-medium text-gray-700"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Course
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Section
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                            Schedule
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                            Instructor
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="min-width: 200px;">
+                            Enrollment
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="stats-table-body" class="bg-white divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-xl mb-2"></i>
+                            <p>Loading statistics...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Results Info -->
+    <div class="mt-4 text-sm text-gray-500 text-center" id="results-info"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const sessionId = '{{ session.id }}';
+    let sectionsData = [];
+    let coursesData = [];  // Aggregated by course
+    let subjectsList = [];
+    let sortOrder = 'desc';
+    let debounceTimer = null;
+    let currentView = 'sections';
+
+    // Initialize event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        // Debounced search
+        document.getElementById('search-query').addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(loadStats, 300);
+        });
+
+        // Filter change handlers
+        ['subject-filter', 'component-filter', 'status-filter', 'sort-by'].forEach(id => {
+            document.getElementById(id).addEventListener('change', loadStats);
+        });
+
+        // Initial load
+        loadStats();
+    });
+
+    function toggleSortOrder() {
+        sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+        const btn = document.getElementById('sort-order-btn');
+        btn.innerHTML = sortOrder === 'desc'
+            ? '<i class="fas fa-sort-amount-down text-gray-600"></i>'
+            : '<i class="fas fa-sort-amount-up text-gray-600"></i>';
+        loadStats();
+    }
+
+    function clearFilters() {
+        document.getElementById('search-query').value = '';
+        document.getElementById('subject-filter').value = '';
+        document.getElementById('component-filter').value = '';
+        document.getElementById('status-filter').value = '';
+        document.getElementById('sort-by').value = 'enrollment_pct';
+        sortOrder = 'desc';
+        document.getElementById('sort-order-btn').innerHTML = '<i class="fas fa-sort-amount-down text-gray-600"></i>';
+        loadStats();
+    }
+
+    function setView(view) {
+        currentView = view;
+
+        // Update button states
+        const sectionsBtn = document.getElementById('view-sections');
+        const coursesBtn = document.getElementById('view-courses');
+
+        if (view === 'sections') {
+            sectionsBtn.className = 'px-4 py-2 text-sm font-medium rounded-md transition-colors bg-primary text-white';
+            coursesBtn.className = 'px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-900';
+            document.getElementById('component-filter').disabled = false;
+            document.getElementById('component-filter').classList.remove('opacity-50');
+        } else {
+            coursesBtn.className = 'px-4 py-2 text-sm font-medium rounded-md transition-colors bg-primary text-white';
+            sectionsBtn.className = 'px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-900';
+            // Disable component filter for course view (sections are aggregated)
+            document.getElementById('component-filter').disabled = true;
+            document.getElementById('component-filter').classList.add('opacity-50');
+        }
+
+        renderStats();
+    }
+
+    async function loadStats() {
+        const tbody = document.getElementById('stats-table-body');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-xl mb-2"></i>
+                    <p>Loading statistics...</p>
+                </td>
+            </tr>
+        `;
+
+        try {
+            // Build query params
+            const params = new URLSearchParams();
+            const search = document.getElementById('search-query').value.trim();
+            const subject = document.getElementById('subject-filter').value;
+            const component = document.getElementById('component-filter').value;
+            const status = document.getElementById('status-filter').value;
+            const sortBy = document.getElementById('sort-by').value;
+
+            if (search) params.append('search', search);
+            if (subject) params.append('subject', subject);
+            if (component) params.append('component', component);
+            if (status) params.append('status', status);
+            params.append('sort_by', sortBy);
+            params.append('sort_order', sortOrder);
+
+            const url = `/api/sessions/${sessionId}/statistics/sections?${params.toString()}`;
+            const res = await api(url);
+
+            if (res && res.ok) {
+                const data = await res.json();
+                sectionsData = data.sections;
+
+                // Aggregate by course for course view
+                coursesData = aggregateByCourse(sectionsData);
+
+                updateSummary(data.summary);
+                populateSubjectFilter(data.subjects);
+                renderStats();
+                updateResultsInfo(data.summary);
+            } else {
+                throw new Error('Failed to load statistics');
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-red-500">
+                        <i class="fas fa-exclamation-circle text-xl mb-2"></i>
+                        <p>Error loading statistics. Please try again.</p>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    function updateSummary(summary) {
+        document.getElementById('stat-sections').textContent = summary.total_sections.toLocaleString();
+        document.getElementById('stat-enrolled').textContent = summary.total_enrolled.toLocaleString();
+        document.getElementById('stat-capacity').textContent = summary.total_capacity.toLocaleString();
+        document.getElementById('stat-overfilled').textContent = summary.overfilled_count;
+    }
+
+    function populateSubjectFilter(subjects) {
+        if (JSON.stringify(subjects) === JSON.stringify(subjectsList)) return;
+        subjectsList = subjects;
+
+        const select = document.getElementById('subject-filter');
+        const currentValue = select.value;
+
+        // Keep the first option and rebuild
+        select.innerHTML = '<option value="">All Subjects</option>';
+        subjects.forEach(subj => {
+            const option = document.createElement('option');
+            option.value = subj;
+            option.textContent = subj;
+            select.appendChild(option);
+        });
+
+        // Restore selection if still valid
+        if (subjects.includes(currentValue)) {
+            select.value = currentValue;
+        }
+    }
+
+    function updateResultsInfo(summary) {
+        const info = document.getElementById('results-info');
+        const activeFilters = document.getElementById('active-filters');
+        const filterCount = document.getElementById('filter-count');
+
+        const displayCount = currentView === 'courses' ? coursesData.length : summary.filtered_count;
+        const totalCount = currentView === 'courses' ? coursesData.length : summary.total_sections;
+        const itemType = currentView === 'courses' ? 'courses' : 'sections';
+
+        if (displayCount < totalCount) {
+            activeFilters.classList.remove('hidden');
+            filterCount.textContent = `${displayCount} of ${totalCount} ${itemType}`;
+            info.textContent = `Showing ${displayCount} filtered results`;
+        } else {
+            activeFilters.classList.add('hidden');
+            info.textContent = `Showing all ${totalCount} ${itemType}`;
+        }
+    }
+
+    function aggregateByCourse(sections) {
+        const courseMap = {};
+
+        sections.forEach(s => {
+            const key = `${s.subject} ${s.catalog}`;
+            if (!courseMap[key]) {
+                courseMap[key] = {
+                    subject: s.subject,
+                    catalog: s.catalog,
+                    title: s.title,
+                    course_id: s.course_id,
+                    sections: [],
+                    total_enrolled: 0,
+                    total_capacity: 0,
+                    components: new Set()
+                };
+            }
+            courseMap[key].sections.push(s);
+            courseMap[key].total_enrolled += s.tot_enrl;
+            courseMap[key].total_capacity += s.cap_enrl;
+            courseMap[key].components.add(s.component);
+        });
+
+        return Object.values(courseMap).map(c => {
+            const pct = c.total_capacity > 0 ? (c.total_enrolled / c.total_capacity * 100) : 0;
+            const isOverfilled = c.total_enrolled > c.total_capacity;
+            const isFull = c.total_enrolled === c.total_capacity;
+
+            return {
+                ...c,
+                components: Array.from(c.components),
+                section_count: c.sections.length,
+                available: Math.max(0, c.total_capacity - c.total_enrolled),
+                enrollment_pct: pct,
+                status: isOverfilled ? 'overfilled' : (isFull ? 'full' : 'available'),
+                overfilled_sections: c.sections.filter(s => s.status === 'overfilled').length
+            };
+        }).sort((a, b) => b.enrollment_pct - a.enrollment_pct);
+    }
+
+    function renderStats() {
+        if (currentView === 'courses') {
+            renderCourseStats();
+            return;
+        }
+
+        const tbody = document.getElementById('stats-table-body');
+
+        if (sectionsData.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                        <i class="fas fa-search text-3xl mb-3 text-gray-300"></i>
+                        <p class="text-lg font-medium">No sections found</p>
+                        <p class="text-sm mt-1">Try adjusting your filters</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = sectionsData.map(section => {
+            const pct = section.enrollment_pct;
+            const isOverfilled = section.status === 'overfilled';
+            const isFull = section.status === 'full';
+
+            // Progress bar color
+            let barColor, barBg;
+            if (isOverfilled) {
+                barColor = 'bg-red-500';
+                barBg = 'bg-red-100';
+            } else if (pct >= 90) {
+                barColor = 'bg-orange-500';
+                barBg = 'bg-orange-100';
+            } else if (pct >= 70) {
+                barColor = 'bg-yellow-500';
+                barBg = 'bg-yellow-100';
+            } else {
+                barColor = 'bg-green-500';
+                barBg = 'bg-green-100';
+            }
+
+            // Status badge
+            let statusBadge, statusClass;
+            if (isOverfilled) {
+                statusBadge = 'Overfilled';
+                statusClass = 'bg-red-100 text-red-800';
+            } else if (isFull) {
+                statusBadge = 'Full';
+                statusClass = 'bg-yellow-100 text-yellow-800';
+            } else {
+                statusBadge = 'Available';
+                statusClass = 'bg-green-100 text-green-800';
+            }
+
+            // Component badge color
+            const componentColors = {
+                'LEC': 'bg-blue-100 text-blue-700',
+                'TUT': 'bg-purple-100 text-purple-700',
+                'LAB': 'bg-orange-100 text-orange-700',
+                'PRO': 'bg-green-100 text-green-700'
+            };
+            const componentClass = componentColors[section.component] || 'bg-gray-100 text-gray-600';
+
+            // Meeting times display
+            const meetingDisplay = section.meeting_times.length > 0
+                ? section.meeting_times.slice(0, 2).join('<br>') + (section.meeting_times.length > 2 ? `<br><span class="text-gray-400">+${section.meeting_times.length - 2} more</span>` : '')
+                : '<span class="text-gray-400">TBA</span>';
+
+            return `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-4 py-3">
+                        <div class="text-sm font-medium text-gray-900">${section.subject} ${section.catalog}</div>
+                        <div class="text-xs text-gray-500 truncate max-w-[200px]" title="${section.title}">${section.title}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium text-gray-900">${section.section}</span>
+                            <span class="px-1.5 py-0.5 text-xs rounded ${componentClass}">${section.component}</span>
+                        </div>
+                        <div class="text-xs text-gray-400">#${section.class_nbr}</div>
+                    </td>
+                    <td class="px-4 py-3 hidden md:table-cell">
+                        <div class="text-xs text-gray-600 leading-relaxed">${meetingDisplay}</div>
+                    </td>
+                    <td class="px-4 py-3 hidden lg:table-cell">
+                        <div class="text-sm text-gray-600 max-w-[150px]">
+                            ${section.instructor ? `
+                                <div class="truncate" title="${section.instructor}">${section.instructor}</div>
+                            ` : '<span class="text-gray-400">-</span>'}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="${isOverfilled ? 'text-red-600 font-semibold' : 'text-gray-700'}">
+                                    ${section.tot_enrl}/${section.cap_enrl || '∞'}
+                                </span>
+                                <span class="text-xs ${isOverfilled ? 'text-red-500' : 'text-gray-500'}">
+                                    ${pct.toFixed(0)}%
+                                </span>
+                            </div>
+                            <div class="w-full ${barBg} rounded-full h-2 overflow-hidden">
+                                <div class="${barColor} h-2 rounded-full transition-all duration-300"
+                                     style="width: ${Math.min(pct, 100)}%"></div>
+                            </div>
+                            ${section.available > 0 ? `
+                                <div class="text-xs text-gray-400">${section.available} seats available</div>
+                            ` : isOverfilled ? `
+                                <div class="text-xs text-red-500">${section.tot_enrl - section.cap_enrl} over capacity</div>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${statusClass}">${statusBadge}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderCourseStats() {
+        const tbody = document.getElementById('stats-table-body');
+
+        if (coursesData.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                        <i class="fas fa-search text-3xl mb-3 text-gray-300"></i>
+                        <p class="text-lg font-medium">No courses found</p>
+                        <p class="text-sm mt-1">Try adjusting your filters</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = coursesData.map(course => {
+            const pct = course.enrollment_pct;
+            const isOverfilled = course.status === 'overfilled';
+            const isFull = course.status === 'full';
+
+            // Progress bar color
+            let barColor, barBg;
+            if (isOverfilled) {
+                barColor = 'bg-red-500';
+                barBg = 'bg-red-100';
+            } else if (pct >= 90) {
+                barColor = 'bg-orange-500';
+                barBg = 'bg-orange-100';
+            } else if (pct >= 70) {
+                barColor = 'bg-yellow-500';
+                barBg = 'bg-yellow-100';
+            } else {
+                barColor = 'bg-green-500';
+                barBg = 'bg-green-100';
+            }
+
+            // Status badge
+            let statusBadge, statusClass;
+            if (isOverfilled) {
+                statusBadge = 'Issues';
+                statusClass = 'bg-red-100 text-red-800';
+            } else if (isFull) {
+                statusBadge = 'Full';
+                statusClass = 'bg-yellow-100 text-yellow-800';
+            } else {
+                statusBadge = 'Available';
+                statusClass = 'bg-green-100 text-green-800';
+            }
+
+            // Component badges
+            const componentColors = {
+                'LEC': 'bg-blue-100 text-blue-700',
+                'TUT': 'bg-purple-100 text-purple-700',
+                'LAB': 'bg-orange-100 text-orange-700',
+                'PRO': 'bg-green-100 text-green-700'
+            };
+
+            const componentBadges = course.components.map(c =>
+                `<span class="px-1.5 py-0.5 text-xs rounded ${componentColors[c] || 'bg-gray-100 text-gray-600'}">${c}</span>`
+            ).join(' ');
+
+            return `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-4 py-3">
+                        <div class="text-sm font-medium text-gray-900">${course.subject} ${course.catalog}</div>
+                        <div class="text-xs text-gray-500 truncate max-w-[200px]" title="${course.title}">${course.title}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-sm font-medium text-gray-900">${course.section_count} sections</div>
+                        <div class="flex gap-1 mt-1">${componentBadges}</div>
+                    </td>
+                    <td class="px-4 py-3 hidden md:table-cell">
+                        ${course.overfilled_sections > 0 ? `
+                            <span class="text-xs text-red-600 font-medium">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>${course.overfilled_sections} overfilled
+                            </span>
+                        ` : `
+                            <span class="text-xs text-gray-400">No issues</span>
+                        `}
+                    </td>
+                    <td class="px-4 py-3 hidden lg:table-cell">
+                        <span class="text-sm text-gray-400">-</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="${isOverfilled ? 'text-red-600 font-semibold' : 'text-gray-700'}">
+                                    ${course.total_enrolled}/${course.total_capacity || '∞'}
+                                </span>
+                                <span class="text-xs ${isOverfilled ? 'text-red-500' : 'text-gray-500'}">
+                                    ${pct.toFixed(0)}%
+                                </span>
+                            </div>
+                            <div class="w-full ${barBg} rounded-full h-2 overflow-hidden">
+                                <div class="${barColor} h-2 rounded-full transition-all duration-300"
+                                     style="width: ${Math.min(pct, 100)}%"></div>
+                            </div>
+                            ${course.available > 0 ? `
+                                <div class="text-xs text-gray-400">${course.available} seats available</div>
+                            ` : isOverfilled ? `
+                                <div class="text-xs text-red-500">${course.total_enrolled - course.total_capacity} over capacity</div>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${statusClass}">${statusBadge}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function exportStats() {
+        const data = currentView === 'courses' ? coursesData : sectionsData;
+        if (data.length === 0) {
+            showToast('No data to export', 'warning');
+            return;
+        }
+
+        let headers, rows;
+
+        if (currentView === 'courses') {
+            headers = ['Course', 'Title', 'Sections', 'Components', 'Enrolled', 'Capacity', 'Available', 'Fill%', 'Overfilled Sections', 'Status'];
+            rows = coursesData.map(c => [
+                `${c.subject} ${c.catalog}`,
+                `"${c.title.replace(/"/g, '""')}"`,
+                c.section_count,
+                `"${c.components.join(', ')}"`,
+                c.total_enrolled,
+                c.total_capacity,
+                c.available,
+                c.enrollment_pct.toFixed(1),
+                c.overfilled_sections,
+                c.status
+            ]);
+        } else {
+            headers = ['Course', 'Title', 'Section', 'Component', 'Class#', 'Instructor', 'Schedule', 'Enrolled', 'Capacity', 'Available', 'Fill%', 'Status'];
+            rows = sectionsData.map(s => [
+                `${s.subject} ${s.catalog}`,
+                `"${s.title.replace(/"/g, '""')}"`,
+                s.section,
+                s.component,
+                s.class_nbr,
+                `"${(s.instructor || '').replace(/"/g, '""')}"`,
+                `"${s.meeting_times.join('; ')}"`,
+                s.tot_enrl,
+                s.cap_enrl,
+                s.available,
+                s.enrollment_pct.toFixed(1),
+                s.status
+            ]);
+        }
+
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+        // Download
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        const viewType = currentView === 'courses' ? 'courses' : 'sections';
+        link.download = `enrollment_statistics_${viewType}_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        showToast('Statistics exported successfully', 'success');
+    }
+</script>
+{% endblock %}

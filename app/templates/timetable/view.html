@@ -1,0 +1,719 @@
+{% extends "base.html" %}
+
+{% block title %}View Timetable - AUGSD Portal{% endblock %}
+
+{% block head %}
+<style>
+.calendar-grid {
+    display: grid;
+    grid-template-columns: 70px repeat(6, 1fr);
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+.calendar-header {
+    background: #f9fafb;
+    padding: 0.75rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.time-slot {
+    background: #f9fafb;
+    padding: 0.5rem;
+    font-size: 0.7rem;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: center;
+}
+.calendar-cell {
+    border-bottom: 1px solid #e5e7eb;
+    border-left: 1px solid #e5e7eb;
+    min-height: 40px;
+    position: relative;
+}
+.course-block {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    padding: 4px 6px;
+    font-size: 0.65rem;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.course-block:hover {
+    transform: scale(1.02);
+    z-index: 10;
+}
+.course-color-0 { background: #dbeafe; border-left: 3px solid #2563eb; }
+.course-color-1 { background: #dcfce7; border-left: 3px solid #16a34a; }
+.course-color-2 { background: #fef3c7; border-left: 3px solid #d97706; }
+.course-color-3 { background: #ede9fe; border-left: 3px solid #7c3aed; }
+.course-color-4 { background: #fce7f3; border-left: 3px solid #db2777; }
+.course-color-5 { background: #ccfbf1; border-left: 3px solid #0d9488; }
+.course-color-6 { background: #fee2e2; border-left: 3px solid #dc2626; }
+
+/* Course details card */
+.course-detail-card {
+    transition: all 0.2s;
+}
+.course-detail-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .calendar-grid { box-shadow: none; }
+    .print-break { page-break-after: always; }
+}
+
+.transfer-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1rem;
+}
+.transfer-modal.active {
+    display: flex;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4 no-print">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}/students" class="hover:text-primary">Students</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Timetable</span>
+    </div>
+
+    <!-- Student Info & Actions -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span class="text-blue-600 font-bold text-lg" id="student-initial">-</span>
+                </div>
+                <div class="ml-4">
+                    <h1 class="text-xl font-bold text-gray-900" id="student-name">Loading...</h1>
+                    <div class="flex items-center space-x-4 text-sm text-gray-600">
+                        <span id="student-campus-id">-</span>
+                        <span class="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs">
+                            <i class="fas fa-check mr-1"></i>Committed
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-2 no-print">
+                <button onclick="printTimetable()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-print mr-2"></i>Print
+                </button>
+                {% if session.is_enabled %}
+                <a href="/session/{{ session.id }}/student/{{ student_id }}/timetable/edit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-edit mr-2"></i>Edit Timetable
+                </a>
+                <button onclick="openTransferModal()" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
+                    <i class="fas fa-exchange-alt mr-2"></i>Transfer Timetable
+                </button>
+                <button onclick="uncommitTimetable()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                    <i class="fas fa-times mr-2"></i>Uncommit
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div class="p-4 border-b border-gray-200 no-print flex items-center justify-between">
+            <h2 class="font-semibold text-gray-900">Weekly Schedule</h2>
+            <div class="text-sm text-gray-500">
+                <span id="total-units" class="font-medium text-gray-900">-</span> total units
+            </div>
+        </div>
+        <div class="p-4">
+            <div id="calendar-container" class="calendar-grid">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Course Details Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div class="p-4 border-b border-gray-200 no-print">
+            <h2 class="font-semibold text-gray-900">Course Details</h2>
+            <p class="text-sm text-gray-500">Enrolled courses with section and instructor information</p>
+        </div>
+        <div class="p-4">
+            <div id="course-details-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <p class="text-sm text-gray-500">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 no-print">
+        <!-- Exam Schedule -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="font-semibold text-gray-900">Exam Schedule</h2>
+            </div>
+            <div class="p-4">
+                <div id="exam-list" class="space-y-3">
+                    <p class="text-sm text-gray-500">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="font-semibold text-gray-900">Summary</h2>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <div class="text-2xl font-bold text-blue-600" id="stat-courses">-</div>
+                        <div class="text-sm text-gray-600">Courses</div>
+                    </div>
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <div class="text-2xl font-bold text-green-600" id="stat-units">-</div>
+                        <div class="text-sm text-gray-600">Units</div>
+                    </div>
+                    <div class="text-center p-4 bg-purple-50 rounded-lg">
+                        <div class="text-2xl font-bold text-purple-600" id="stat-lectures">-</div>
+                        <div class="text-sm text-gray-600">Lecture Hours/Week</div>
+                    </div>
+                    <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                        <div class="text-2xl font-bold text-yellow-600" id="stat-labs">-</div>
+                        <div class="text-sm text-gray-600">Lab/Tutorial Hours</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfer Timetable Modal -->
+<div id="transfer-modal" class="transfer-modal no-print">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Transfer Timetable</h2>
+                <p class="text-sm text-gray-500">Select a student without a timetable to receive this schedule</p>
+            </div>
+            <button onclick="closeTransferModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="p-4 border-b border-gray-200">
+            <div class="relative">
+                <input type="text" id="transfer-search" placeholder="Search by name or campus ID..."
+                    class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    oninput="debouncedSearchTransferTargets()">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+        <div id="transfer-students-list" class="overflow-y-auto flex-1 p-2">
+            <p class="text-sm text-gray-500 text-center py-8">Loading students...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sessionId = '{{ session.id }}';
+const studentId = '{{ student_id }}';
+let timetableData = null;
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const START_HOUR = 8;
+const END_HOUR = 19;
+
+function initCalendar() {
+    const container = document.getElementById('calendar-container');
+    let html = `
+        <div class="calendar-header"></div>
+        ${DAYS.map(day => `<div class="calendar-header">${day.substring(0, 3)}</div>`).join('')}
+    `;
+
+    for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+        const time12 = hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`;
+        html += `<div class="time-slot">${time12}</div>`;
+        DAYS.forEach(day => {
+            html += `<div class="calendar-cell" data-day="${day}" data-hour="${hour}"></div>`;
+        });
+    }
+
+    container.innerHTML = html;
+}
+
+async function loadStudent() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}`);
+        if (res && res.ok) {
+            const student = await res.json();
+            document.getElementById('student-name').textContent = student.name;
+            document.getElementById('student-initial').textContent = student.name.charAt(0);
+            document.getElementById('student-campus-id').textContent = student.campus_id;
+        }
+    } catch (error) {
+        console.error('Error loading student:', error);
+    }
+}
+
+async function loadTimetable() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable`);
+        if (res && res.ok) {
+            timetableData = await res.json();
+            renderCalendar();
+            renderCourseDetails();
+            renderExamList();
+            renderStats();
+        } else if (res && res.status === 404) {
+            document.getElementById('course-details-list').innerHTML = '<p class="text-sm text-gray-500">No timetable found</p>';
+        }
+    } catch (error) {
+        console.error('Error loading timetable:', error);
+    }
+}
+
+function renderCalendar() {
+    if (!timetableData || !timetableData.items) return;
+
+    // Clear existing blocks
+    document.querySelectorAll('.course-block').forEach(el => el.remove());
+
+    // Create color map for courses
+    const colorMap = new Map();
+    let colorIndex = 0;
+
+    timetableData.items.forEach(item => {
+        const section = item.course_section;
+        if (!section) return;
+
+        const course = section.course;
+        const courseKey = section.course_id;
+        if (!colorMap.has(courseKey)) {
+            colorMap.set(courseKey, colorIndex++ % 7);
+        }
+        const colorClass = `course-color-${colorMap.get(courseKey)}`;
+
+        // Use meetings array if available, otherwise fall back to legacy single meeting
+        const meetings = section.meetings && section.meetings.length > 0
+            ? section.meetings
+            : [{ day: section.day, mtg_start: section.mtg_start, mtg_end: section.mtg_end, room: section.room, instructor: section.instructor }];
+
+        meetings.forEach(meeting => {
+            const dayIndex = DAYS.indexOf(meeting.day);
+            if (dayIndex === -1) return;
+
+            const startTime = meeting.mtg_start;
+            const endTime = meeting.mtg_end;
+            if (!startTime || !endTime) return;
+
+            const [startHour, startMin] = startTime.split(':').map(Number);
+            const [endHour, endMin] = endTime.split(':').map(Number);
+
+            const cell = document.querySelector(`.calendar-cell[data-day="${meeting.day}"][data-hour="${startHour}"]`);
+            if (!cell) return;
+
+            const durationMinutes = (endHour - startHour) * 60 + (endMin - startMin);
+            const height = (durationMinutes / 60) * 40;
+            const top = (startMin / 60) * 40;
+
+            const block = document.createElement('div');
+            block.className = `course-block ${colorClass}`;
+            block.style.top = `${top}px`;
+            block.style.height = `${height}px`;
+            block.innerHTML = `
+                <div class="font-medium truncate">${course?.subject || ''} ${course?.catalog || ''}</div>
+                <div class="truncate opacity-75">${section.component || ''} ${section.section}</div>
+            `;
+            block.title = `${course?.subject} ${course?.catalog} - ${course?.title}\n${section.component} Section ${section.section}\n${formatTime(startTime)} - ${formatTime(endTime)}\n${meeting.room || 'TBA'}\n${meeting.instructor || 'TBA'}`;
+
+            cell.appendChild(block);
+        });
+    });
+}
+
+function renderCourseDetails() {
+    if (!timetableData || !timetableData.items) return;
+
+    const container = document.getElementById('course-details-list');
+
+    // Group by course_id first, then by class_nbr within each course
+    const courseSectionsMap = new Map();
+
+    timetableData.items.forEach(item => {
+        const section = item.course_section;
+        const course = section?.course;
+        if (!course) return;
+
+        if (!courseSectionsMap.has(course.id)) {
+            courseSectionsMap.set(course.id, { course, classSections: new Map() });
+        }
+
+        const courseData = courseSectionsMap.get(course.id);
+        const classNbr = section.class_nbr;
+
+        if (!courseData.classSections.has(classNbr)) {
+            // Store section with its meetings array
+            courseData.classSections.set(classNbr, {
+                section: section,
+                meetings: section.meetings && section.meetings.length > 0
+                    ? section.meetings
+                    : [{ day: section.day, mtg_start: section.mtg_start, mtg_end: section.mtg_end, room: section.room, instructor: section.instructor }]
+            });
+        }
+    });
+
+    let totalUnits = 0;
+    const colors = [
+        { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100' },
+        { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', badge: 'bg-green-100' },
+        { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-100' },
+        { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100' },
+        { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', badge: 'bg-pink-100' },
+        { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', badge: 'bg-teal-100' },
+    ];
+    let colorIdx = 0;
+
+    container.innerHTML = Array.from(courseSectionsMap.values()).map(({ course, classSections }) => {
+        totalUnits += course.max_units || 0;
+        const color = colors[colorIdx++ % colors.length];
+
+        return `
+            <div class="course-detail-card p-4 ${color.bg} border ${color.border} rounded-xl">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <h3 class="font-bold ${color.text}">${course.subject} ${course.catalog}</h3>
+                        <p class="text-sm text-gray-600 mt-0.5">${course.title}</p>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-medium rounded ${color.badge} ${color.text}">
+                        ${course.max_units || '-'} units
+                    </span>
+                </div>
+
+                <div class="space-y-3">
+                    ${Array.from(classSections.entries()).map(([classNbr, data]) => {
+                        const section = data.section;
+                        const meetings = data.meetings;
+
+                        return `
+                            <div class="bg-white bg-opacity-60 rounded-lg p-3">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-semibold uppercase text-gray-500">${section.component}</span>
+                                    <span class="text-xs text-gray-500">Sec ${section.section} (Class #${classNbr})</span>
+                                </div>
+                                <div class="space-y-1 text-sm">
+                                    <div class="flex items-center text-gray-700">
+                                        <i class="fas fa-user-tie w-5 text-gray-400"></i>
+                                        <span>${section.instructor || meetings[0]?.instructor || 'TBA'}</span>
+                                    </div>
+                                    ${meetings.map(mt => `
+                                        <div class="flex items-center text-gray-700">
+                                            <i class="fas fa-clock w-5 text-gray-400"></i>
+                                            <span>${mt.day || 'TBA'} ${formatTime(mt.mtg_start)} - ${formatTime(mt.mtg_end)}</span>
+                                        </div>
+                                        <div class="flex items-center text-gray-700">
+                                            <i class="fas fa-map-marker-alt w-5 text-gray-400"></i>
+                                            <span>${mt.room || 'TBA'}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('total-units').textContent = totalUnits;
+}
+
+function renderExamList() {
+    if (!timetableData || !timetableData.items) return;
+
+    const container = document.getElementById('exam-list');
+    const exams = [];
+
+    timetableData.items.forEach(item => {
+        const section = item.course_section;
+        if (section?.exam_date) {
+            const course = section.course;
+            exams.push({
+                course: `${course?.subject || ''} ${course?.catalog || ''}`,
+                title: course?.title || '',
+                date: section.exam_date,
+                start: section.exam_start,
+                end: section.exam_end,
+            });
+        }
+    });
+
+    // Remove duplicates and sort by date
+    const uniqueExams = [...new Map(exams.map(e => [`${e.course}-${e.date}`, e])).values()];
+    uniqueExams.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (uniqueExams.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500">No exam dates available</p>';
+        return;
+    }
+
+    container.innerHTML = uniqueExams.map(exam => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+                <span class="font-medium text-gray-900">${exam.course}</span>
+                <p class="text-xs text-gray-500">${exam.title}</p>
+            </div>
+            <div class="text-right">
+                <div class="text-sm font-medium text-gray-900">${new Date(exam.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                ${exam.start ? `<div class="text-xs text-gray-500">${formatTime(exam.start)} - ${formatTime(exam.end)}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderStats() {
+    if (!timetableData || !timetableData.items) return;
+
+    const uniqueClassNumbers = new Set();
+    const uniqueCourses = new Set();
+    let totalUnits = 0;
+    let lectureHours = 0;
+    let labHours = 0;
+
+    timetableData.items.forEach(item => {
+        const section = item.course_section;
+        const course = section?.course;
+
+        // Count unique class numbers (sections)
+        if (section?.class_nbr) {
+            uniqueClassNumbers.add(section.class_nbr);
+        }
+
+        // Count units per unique course
+        if (course && !uniqueCourses.has(course.id)) {
+            uniqueCourses.add(course.id);
+            totalUnits += course.max_units || 0;
+        }
+
+        // Sum all meeting hours using meetings array
+        const meetings = section?.meetings && section.meetings.length > 0
+            ? section.meetings
+            : [{ mtg_start: section?.mtg_start, mtg_end: section?.mtg_end }];
+
+        meetings.forEach(mt => {
+            if (mt.mtg_start && mt.mtg_end) {
+                const [startH, startM] = mt.mtg_start.split(':').map(Number);
+                const [endH, endM] = mt.mtg_end.split(':').map(Number);
+                const duration = (endH - startH) + (endM - startM) / 60;
+
+                if (section.component === 'LEC' || section.component === 'Lecture') {
+                    lectureHours += duration;
+                } else {
+                    labHours += duration;
+                }
+            }
+        });
+    });
+
+    document.getElementById('stat-courses').textContent = uniqueClassNumbers.size;
+    document.getElementById('stat-units').textContent = totalUnits;
+    document.getElementById('stat-lectures').textContent = lectureHours.toFixed(1);
+    document.getElementById('stat-labs').textContent = labHours.toFixed(1);
+}
+
+async function uncommitTimetable() {
+    if (!confirm('Are you sure you want to uncommit this timetable? This will free up the enrolled sections.')) return;
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/uncommit`, {
+            method: 'POST',
+        });
+
+        if (res && res.ok) {
+            alert('Timetable uncommitted successfully');
+            window.location.href = `/session/${sessionId}/students`;
+        } else {
+            const data = await res.json();
+            alert(data.detail || 'Failed to uncommit timetable');
+        }
+    } catch (error) {
+        alert('Error uncommitting timetable');
+    }
+}
+
+let transferSearchTimeout = null;
+let transferInProgress = false;
+
+function openTransferModal() {
+    document.getElementById('transfer-modal').classList.add('active');
+    document.getElementById('transfer-search').value = '';
+    loadTransferTargets();
+}
+
+function closeTransferModal() {
+    document.getElementById('transfer-modal').classList.remove('active');
+}
+
+function debouncedSearchTransferTargets() {
+    clearTimeout(transferSearchTimeout);
+    transferSearchTimeout = setTimeout(loadTransferTargets, 300);
+}
+
+async function loadTransferTargets() {
+    const query = document.getElementById('transfer-search').value.trim();
+    const listEl = document.getElementById('transfer-students-list');
+    listEl.innerHTML = '<p class="text-sm text-gray-500 text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</p>';
+
+    try {
+        const params = new URLSearchParams({
+            timetable: 'without',
+            page_size: '100',
+        });
+        if (query) params.set('q', query);
+
+        const res = await api(`/api/sessions/${sessionId}/students/search?${params}`);
+        if (!res || !res.ok) {
+            listEl.innerHTML = '<p class="text-sm text-red-500 text-center py-8">Failed to load students</p>';
+            return;
+        }
+
+        const data = await res.json();
+        const students = (data.items || []).filter(s => s.id !== studentId);
+
+        if (students.length === 0) {
+            listEl.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No students without a timetable found</p>';
+            return;
+        }
+
+        listEl.innerHTML = students.map(student => `
+            <button type="button"
+                data-target-id="${student.id}"
+                data-target-name="${encodeURIComponent(student.name)}"
+                data-target-campus="${encodeURIComponent(student.campus_id)}"
+                class="transfer-target-btn w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-colors mb-1">
+                <div class="font-medium text-gray-900">${escapeHtml(student.name)}</div>
+                <div class="text-sm text-gray-500">${escapeHtml(student.campus_id)}</div>
+            </button>
+        `).join('');
+
+        listEl.querySelectorAll('.transfer-target-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                confirmTransfer(
+                    btn.dataset.targetId,
+                    decodeURIComponent(btn.dataset.targetName),
+                    decodeURIComponent(btn.dataset.targetCampus)
+                );
+            });
+        });
+    } catch (error) {
+        console.error('Error loading transfer targets:', error);
+        listEl.innerHTML = '<p class="text-sm text-red-500 text-center py-8">Error loading students</p>';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function confirmTransfer(targetStudentId, targetName, targetCampusId) {
+    if (transferInProgress) return;
+
+    const sourceName = document.getElementById('student-name').textContent;
+    if (!confirm(`Transfer timetable from ${sourceName} to ${targetName} (${targetCampusId})?`)) {
+        return;
+    }
+
+    transferInProgress = true;
+    closeTransferModal();
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_student_id: targetStudentId }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            showToast(data.detail || 'Failed to transfer timetable', 'error');
+            transferInProgress = false;
+            return;
+        }
+
+        await downloadTransferExport(data.zip_filename);
+        showToast(data.message || 'Timetable transferred successfully', 'success');
+
+        setTimeout(() => {
+            window.location.href = `/session/${sessionId}/student/${targetStudentId}/timetable`;
+        }, 500);
+    } catch (error) {
+        console.error('Error transferring timetable:', error);
+        showToast('Error transferring timetable', 'error');
+        transferInProgress = false;
+    }
+}
+
+async function downloadTransferExport(filename) {
+    try {
+        const res = await fetch(`/api/sessions/${sessionId}/export/transfer/${filename}`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` },
+        });
+
+        if (!res.ok) return;
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    } catch (error) {
+        console.error('Error downloading transfer export:', error);
+    }
+}
+
+function printTimetable() {
+    window.print();
+}
+
+function formatTime(timeStr) {
+    if (!timeStr) return 'TBA';
+    const [hours, minutes] = timeStr.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${minutes} ${ampm}`;
+}
+
+// Initialize
+initCalendar();
+loadStudent();
+loadTimetable();
+</script>
+{% endblock %}

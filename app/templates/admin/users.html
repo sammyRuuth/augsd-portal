@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - AUGSD Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <div class="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+                <a href="/admin/dashboard" class="hover:text-primary">Dashboard</a>
+                <i class="fas fa-chevron-right text-xs"></i>
+                <span>Users</span>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900">User Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Create and manage staff accounts</p>
+        </div>
+        <button onclick="showCreateUserModal()" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+            <i class="fas fa-plus mr-2"></i>Create User
+        </button>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body" class="bg-white divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create User Modal -->
+<div id="create-user-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">Create New User</h3>
+            <button onclick="hideCreateUserModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="create-user-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                <input type="email" id="user-email" required
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="user@example.com">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select id="user-role" required
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary">
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p class="text-sm text-yellow-800">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    A random password will be generated. Make sure to save it!
+                </p>
+            </div>
+            <div class="flex space-x-3 pt-4">
+                <button type="button" onclick="hideCreateUserModal()"
+                    class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Create User
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Password Modal -->
+<div id="password-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="text-center mb-6">
+            <div class="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-check text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900">User Created Successfully</h3>
+            <p class="text-sm text-gray-500 mt-1">Save the password - it won't be shown again!</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <p class="text-sm text-gray-600 mb-1">Email:</p>
+            <p class="font-medium text-gray-900" id="created-user-email"></p>
+            <p class="text-sm text-gray-600 mb-1 mt-3">Password:</p>
+            <div class="flex items-center space-x-2">
+                <code class="flex-1 bg-white border border-gray-200 px-3 py-2 rounded font-mono text-sm" id="created-user-password"></code>
+                <button onclick="copyPassword()" class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+        <button onclick="hidePasswordModal()" class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+            Done
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let usersData = [];
+
+async function loadUsers() {
+    try {
+        const res = await api('/api/admin/users');
+        if (res && res.ok) {
+            usersData = await res.json();
+            renderUsersTable();
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+}
+
+function renderUsersTable() {
+    const tbody = document.getElementById('users-table-body');
+    
+    if (usersData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No users found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = usersData.map(user => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-gray-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900">${user.email}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 text-xs rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">
+                    ${user.role}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 text-xs rounded-full ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                    ${user.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                ${new Date(user.created_at).toLocaleDateString()}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <button class="text-gray-400 hover:text-gray-600" title="More actions">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showCreateUserModal() {
+    document.getElementById('create-user-modal').classList.remove('hidden');
+}
+
+function hideCreateUserModal() {
+    document.getElementById('create-user-modal').classList.add('hidden');
+    document.getElementById('create-user-form').reset();
+}
+
+function showPasswordModal(email, password) {
+    document.getElementById('created-user-email').textContent = email;
+    document.getElementById('created-user-password').textContent = password;
+    document.getElementById('password-modal').classList.remove('hidden');
+}
+
+function hidePasswordModal() {
+    document.getElementById('password-modal').classList.add('hidden');
+    loadUsers();
+}
+
+function copyPassword() {
+    const password = document.getElementById('created-user-password').textContent;
+    navigator.clipboard.writeText(password).then(() => {
+        alert('Password copied to clipboard!');
+    });
+}
+
+document.getElementById('create-user-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('user-email').value;
+    const role = document.getElementById('user-role').value;
+
+    try {
+        const res = await api('/api/admin/users', {
+            method: 'POST',
+            body: JSON.stringify({ email, role }),
+        });
+
+        if (res && res.ok) {
+            const data = await res.json();
+            hideCreateUserModal();
+            showPasswordModal(data.user.email, data.password);
+        } else {
+            const data = await res.json();
+            alert(data.detail || 'Failed to create user');
+        }
+    } catch (error) {
+        alert('Error creating user');
+    }
+});
+
+// Load data on page load
+loadUsers();
+</script>
+{% endblock %}

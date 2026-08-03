@@ -1,0 +1,128 @@
+# Timetable Generator Configuration
+# ==================================
+# Edit this file to customize the generation behavior.
+
+# Capacity Settings
+# -----------------
+capacity:
+  # Default section capacity when not specified in Excel
+  default_capacity: 40
+
+  # Extra seats automatically added to TUT sections
+  tutorial_bonus_seats: 0
+
+  # Allow sections to go negative (for capacity analysis)
+  allow_negative_capacity: false
+
+  # Maximum overfill limits per component type
+  # Set to 0 to completely disallow overfill
+  max_overfill:
+    LEC: 0 # Lectures - no overfill
+    LAB: 0 # Labs have strict equipment limits
+    PRO: 0 # Projects can slightly overfill
+    PRA: 0 # Practicals can slightly overfill
+    TUT: 0 # Tutorials - no overfill
+
+  # Course-specific overfill overrides (stricter than defaults)
+  course_overfill_overrides:
+    CHEM F101:
+      LAB: 0 # Chemistry labs - safety critical
+    PHY F101:
+      LAB: 0 # Physics labs - equipment limits
+
+  # Section capacity overrides (REPLACES Excel values)
+  # Use this to correct incorrect capacities in the source data
+  section_capacity_overrides:
+    BIO F101:
+      TUT: 60
+      LAB: 50
+    PHY F101:
+      TUT: 60
+      LAB: 45
+      LEC: 290
+    CHEM F101:
+      TUT: 60
+      LAB: 61
+    MATH F102:
+      TUT: 60
+      LEC: 450
+    MATH F113:
+      TUT: 60
+      LEC: 450
+    CS F111:
+      LAB: 49
+    BITS F102:
+      TUT: 45
+    ECON F211:
+      TUT: 45
+
+  # Courses with unlimited capacity (no restrictions apply)
+  unlimited_capacity_courses:
+    - BITS F101-1
+    - BITS K101-1
+
+# Generator Settings
+# ------------------
+generator:
+  # Number of different plan ordering strategies to try
+  num_strategies: 25
+
+  # Minimum timetable variants per plan (for mixing options)
+  min_timetables_per_plan: 1
+
+  # Attempts to find different section combos when duplicates occur
+  variant_retry_attempts: 5
+
+  # Maximum greedy attempts per timetable generation
+  max_greedy_attempts: 5000
+
+  # Randomize batch sizes to create more, smaller groups
+  batch_randomness: true
+
+  # Minimum batch size (null = auto-calculate)
+  min_batch_size: null
+
+  # Weight for preferring compact schedules (0 = disabled)
+  # Higher values prefer back-to-back classes
+  compactness_weight: 0.0
+
+# Output Settings
+# ---------------
+output:
+  # Directory for generated files
+  output_dir: exports/timetables
+
+  # Generate individual CSV files per plan
+  generate_plan_csvs: true
+
+  # Generate PDF timetable grids
+  generate_pdf: true
+
+  # PDF page settings
+  pdf_page_size: A4
+  pdf_orientation: landscape
+
+  # Time slot range for PDF grid (24-hour format)
+  time_slot_start: "08:00"
+  time_slot_end: "18:00"
+
+  # Days to include in timetable
+  days:
+    - Monday
+    - Tuesday
+    - Wednesday
+    - Thursday
+    - Friday
+    - Saturday
+
+# Day Pattern Mappings
+# --------------------
+# Used to parse class patterns like "MWF" or "TTH"
+day_patterns:
+  M: Monday
+  T: Tuesday
+  W: Wednesday
+  TH: Thursday
+  F: Friday
+  S: Saturday
+  SU: Sunday

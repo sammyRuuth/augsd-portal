@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AUGSD Portal{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#64748b',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {% block body %}
+    <!-- Navigation -->
+    {% if current_user %}
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="{% if current_user.role == 'admin' %}/admin/dashboard{% else %}/sessions{% endif %}" class="flex items-center">
+                        <span class="text-xl font-bold text-primary">AUGSD Portal</span>
+                    </a>
+                    {% if current_user.role == 'admin' %}
+                    <div class="hidden md:ml-6 md:flex md:space-x-4">
+                        <a href="/admin/dashboard" class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-primary hover:bg-gray-50">
+                            Dashboard
+                        </a>
+                        <a href="/admin/users" class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-primary hover:bg-gray-50">
+                            Users
+                        </a>
+                        <a href="/sessions" class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-primary hover:bg-gray-50">
+                            Sessions
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">
+                        <i class="fas fa-user-circle mr-1"></i>
+                        {{ current_user.email }}
+                        <span class="ml-1 px-2 py-0.5 text-xs rounded-full {% if current_user.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ current_user.role }}
+                        </span>
+                    </span>
+                    <a href="/logout" class="text-sm text-gray-600 hover:text-red-600">
+                        <i class="fas fa-sign-out-alt mr-1"></i>Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        {% for message in messages %}
+        <div class="mb-2 p-4 rounded-lg {% if message.type == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.type == 'success' %}bg-green-50 text-green-800 border border-green-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+            {{ message.text }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="{% if current_user %}py-6{% endif %}">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+    {% endblock %}
+
+    <!-- Toast Styles -->
+    <style>
+        .toast {
+            pointer-events: auto;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+        }
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        .toast.hide {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    </style>
+
+    <!-- Scripts -->
+    <script>
+        // Token management
+        const TOKEN_KEY = 'augsd_token';
+        const USER_KEY = 'augsd_user';
+
+        function getToken() {
+            return localStorage.getItem(TOKEN_KEY);
+        }
+
+        function setToken(token) {
+            localStorage.setItem(TOKEN_KEY, token);
+        }
+
+        function setUser(user) {
+            localStorage.setItem(USER_KEY, JSON.stringify(user));
+        }
+
+        function getUser() {
+            const user = localStorage.getItem(USER_KEY);
+            return user ? JSON.parse(user) : null;
+        }
+
+        function clearAuth() {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            // Clear cookie too
+            document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax';
+        }
+
+        // API helper
+        async function api(endpoint, options = {}) {
+            const token = getToken();
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+                ...options.headers,
+            };
+
+            const response = await fetch(endpoint, {
+                ...options,
+                headers,
+            });
+
+            if (response.status === 401) {
+                clearAuth();
+                window.location.href = '/login';
+                return;
+            }
+
+            return response;
+        }
+
+        // Format time helper
+        function formatTime(timeStr) {
+            if (!timeStr) return '';
+            const [hours, minutes] = timeStr.split(':');
+            const h = parseInt(hours);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            return `${h12}:${minutes} ${ampm}`;
+        }
+
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 6000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500',
+            };
+
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle',
+            };
+
+            toast.className = `toast flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white max-w-sm ${colors[type] || colors.info}`;
+
+            toast.innerHTML = `
+                <i class="fas ${icons[type] || icons.info} text-lg"></i>
+                <span class="text-sm font-medium flex-1">${message}</span>
+                <button onclick="dismissToast(this.parentElement)" class="opacity-70 hover:opacity-100 transition-opacity">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            // Auto-dismiss
+            if (duration > 0) {
+                setTimeout(() => dismissToast(toast), duration);
+            }
+
+            return toast;
+        }
+
+        function dismissToast(toast) {
+            if (!toast || toast.classList.contains('hide')) return;
+
+            toast.classList.remove('show');
+            toast.classList.add('hide');
+
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 300);
+        }
+
+        // Backwards compatibility alias
+        function showNotification(message, type = 'info') {
+            showToast(message, type);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

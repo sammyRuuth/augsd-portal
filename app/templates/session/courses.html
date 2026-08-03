@@ -1,0 +1,884 @@
+{% extends "base.html" %}
+
+{% block title %}Courses - {{ session.name }} - AUGSD Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Courses</span>
+    </div>
+
+    <!-- Header with Stats -->
+    <div class="mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Course Catalog</h1>
+                <p class="mt-1 text-sm text-gray-600">Browse and manage courses and sections</p>
+            </div>
+            <div id="stats-summary" class="mt-4 md:mt-0 flex items-center space-x-4 text-sm">
+                <!-- Stats will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+            <div class="relative flex-1">
+                <input type="text" id="search-query" placeholder="Search courses... (e.g., CS F2, Data Structures, instructor name)"
+                    class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                    oninput="debounceSearch()">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+            </div>
+            <select id="component-filter"
+                class="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                onchange="loadCourses()">
+                <option value="">All Components</option>
+                <option value="LEC">Lecture</option>
+                <option value="TUT">Tutorial</option>
+                <option value="LAB">Lab</option>
+                <option value="PRO">Project</option>
+            </select>
+            <select id="capacity-filter"
+                class="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                onchange="renderCourses()">
+                <option value="">All Capacity</option>
+                <option value="available">Has Available Seats</option>
+                <option value="full">Full (No Seats)</option>
+                <option value="overfilled">Overfilled</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="flex items-center justify-between mb-4">
+        <div class="text-sm text-gray-600">
+            <span id="courses-count">0</span> courses found
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="setView('grid')" id="view-grid" class="p-2 rounded-lg hover:bg-gray-100 text-primary">
+                <i class="fas fa-th-large"></i>
+            </button>
+            <button onclick="setView('list')" id="view-list" class="p-2 rounded-lg hover:bg-gray-100 text-gray-400">
+                <i class="fas fa-list"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Courses Grid/List -->
+    <div id="courses-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="col-span-full text-center py-8 text-gray-500">
+            <i class="fas fa-spinner fa-spin text-2xl"></i>
+            <p class="mt-2">Loading courses...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Section Details Modal -->
+<div id="section-modal" class="hidden fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-200">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col ring-1 ring-gray-900/5">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between bg-white sticky top-0 z-20">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900 tracking-tight" id="modal-course-title">Course Sections</h3>
+                <p class="text-sm text-gray-500 mt-0.5" id="modal-course-subtitle"></p>
+            </div>
+            <button onclick="hideModal()" class="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Course Stats Summary -->
+        <div id="modal-course-stats" class="px-6 py-4 bg-gray-50 border-b border-gray-100">
+            <!-- Stats will be populated dynamically -->
+        </div>
+
+        <!-- Sections List -->
+        <div class="p-6 overflow-y-auto flex-1 bg-white custom-scrollbar" id="modal-sections-list">
+            Loading...
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-between z-20">
+            <div class="text-xs text-gray-400 flex items-center">
+                <i class="fas fa-info-circle mr-1.5 text-primary/60"></i>
+                <span>Type in capacity box to edit</span>
+            </div>
+            <button onclick="hideModal()" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors shadow-sm">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Capacity Edit Modal -->
+<div id="capacity-edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Edit Section Capacity</h3>
+            <p class="text-sm text-gray-500 mt-1" id="capacity-edit-section-info"></p>
+        </div>
+        <div class="p-6">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Current Enrollment</label>
+                    <div class="text-2xl font-bold text-gray-900" id="capacity-edit-current"></div>
+                </div>
+                <div>
+                    <label for="capacity-edit-input" class="block text-sm font-medium text-gray-700 mb-1">Maximum Capacity</label>
+                    <input type="number" id="capacity-edit-input" min="0"
+                        class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                        placeholder="Enter capacity (leave empty for unlimited)">
+                    <p class="text-xs text-gray-500 mt-1">Leave empty or set to 0 for unlimited capacity</p>
+                </div>
+                <div id="capacity-edit-warning" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div class="flex items-start">
+                        <i class="fas fa-exclamation-triangle text-amber-500 mt-0.5 mr-2"></i>
+                        <p class="text-sm text-amber-700" id="capacity-edit-warning-text"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end space-x-3">
+            <button onclick="hideCapacityEditModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button onclick="saveCapacity()" id="capacity-save-btn" class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark transition-colors">
+                Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="hidden fixed bottom-4 right-4 z-[70] transform transition-all duration-300 translate-y-full opacity-0">
+    <div class="bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3">
+        <i id="toast-icon" class="fas fa-check-circle text-green-400"></i>
+        <span id="toast-message">Success</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const sessionId = '{{ session.id }}';
+    let searchTimeout = null;
+    let coursesData = [];
+    let sectionsData = [];
+    let currentCourseId = null;
+    let currentEditSection = null;
+    let currentView = 'grid';
+    let activeComponentTab = null;
+
+    function debounceSearch() {
+        if (searchTimeout) clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(loadCourses, 300);
+    }
+
+    async function loadCourses() {
+        const grid = document.getElementById('courses-grid');
+        grid.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500"><i class="fas fa-spinner fa-spin text-2xl"></i><p class="mt-2">Loading...</p></div>';
+
+        try {
+            const query = document.getElementById('search-query').value;
+            let url = `/api/sessions/${sessionId}/courses`;
+            if (query) {
+                url += `?query=${encodeURIComponent(query)}`;
+            }
+
+            const res = await api(url);
+            if (res && res.ok) {
+                coursesData = await res.json();
+
+                // Also load sections
+                const sectionsRes = await api(`/api/sessions/${sessionId}/courses/sections`);
+                if (sectionsRes && sectionsRes.ok) {
+                    sectionsData = await sectionsRes.json();
+                }
+
+                updateStats();
+                renderCourses();
+            }
+        } catch (error) {
+            console.error('Error loading courses:', error);
+            grid.innerHTML = '<div class="col-span-full text-center py-8 text-red-500">Error loading courses</div>';
+        }
+    }
+
+    function updateStats() {
+        const totalCourses = coursesData.length;
+        const totalSections = new Set(sectionsData.map(s => s.class_nbr)).size;
+        const totalCapacity = sectionsData.reduce((sum, s) => sum + (s.cap_enrl || 0), 0);
+        const totalEnrolled = sectionsData.reduce((sum, s) => sum + (s.tot_enrl || 0), 0);
+
+        document.getElementById('stats-summary').innerHTML = `
+            <div class="flex items-center space-x-1 px-3 py-1 bg-blue-50 rounded-full">
+                <i class="fas fa-book text-blue-500"></i>
+                <span class="text-blue-700 font-medium">${totalCourses} courses</span>
+            </div>
+            <div class="flex items-center space-x-1 px-3 py-1 bg-purple-50 rounded-full">
+                <i class="fas fa-layer-group text-purple-500"></i>
+                <span class="text-purple-700 font-medium">${totalSections} sections</span>
+            </div>
+        `;
+    }
+
+    function setView(view) {
+        currentView = view;
+        document.getElementById('view-grid').classList.toggle('text-primary', view === 'grid');
+        document.getElementById('view-grid').classList.toggle('text-gray-400', view !== 'grid');
+        document.getElementById('view-list').classList.toggle('text-primary', view === 'list');
+        document.getElementById('view-list').classList.toggle('text-gray-400', view !== 'list');
+        renderCourses();
+    }
+
+    function renderCourses() {
+        const grid = document.getElementById('courses-grid');
+        const componentFilter = document.getElementById('component-filter').value;
+        const capacityFilter = document.getElementById('capacity-filter').value;
+
+        // Group sections by course
+        const coursesSectionsMap = {};
+        sectionsData.forEach(section => {
+            if (!coursesSectionsMap[section.course_id]) {
+                coursesSectionsMap[section.course_id] = [];
+            }
+            if (!componentFilter || section.component === componentFilter) {
+                coursesSectionsMap[section.course_id].push(section);
+            }
+        });
+
+        // Filter courses that have sections matching the filter
+        let filteredCourses = coursesData;
+        if (componentFilter) {
+            filteredCourses = coursesData.filter(course =>
+                coursesSectionsMap[course.id] && coursesSectionsMap[course.id].length > 0
+            );
+        }
+
+        // Apply capacity filter
+        if (capacityFilter) {
+            filteredCourses = filteredCourses.filter(course => {
+                const sections = coursesSectionsMap[course.id] || [];
+                const uniqueSections = getUniqueByClassNbr(sections);
+
+                return uniqueSections.some(s => {
+                    const available = (s.cap_enrl || Infinity) - (s.tot_enrl || 0);
+                    const isOverfilled = s.tot_enrl > (s.cap_enrl || Infinity);
+
+                    if (capacityFilter === 'available') return available > 0 && !isOverfilled;
+                    if (capacityFilter === 'full') return available <= 0 && !isOverfilled;
+                    if (capacityFilter === 'overfilled') return isOverfilled;
+                    return true;
+                });
+            });
+        }
+
+        document.getElementById('courses-count').textContent = filteredCourses.length;
+
+        if (filteredCourses.length === 0) {
+            grid.innerHTML = `
+                <div class="col-span-full text-center py-12">
+                    <i class="fas fa-book text-gray-300 text-5xl mb-4"></i>
+                    <p class="text-gray-500">No courses found</p>
+                </div>
+            `;
+            return;
+        }
+
+        if (currentView === 'grid') {
+            grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+            grid.innerHTML = filteredCourses.map(course => renderCourseCard(course, coursesSectionsMap)).join('');
+        } else {
+            grid.className = 'space-y-3';
+            grid.innerHTML = filteredCourses.map(course => renderCourseListItem(course, coursesSectionsMap)).join('');
+        }
+    }
+
+    function getUniqueByClassNbr(sections) {
+        const seen = new Set();
+        return sections.filter(s => {
+            if (seen.has(s.class_nbr)) return false;
+            seen.add(s.class_nbr);
+            return true;
+        });
+    }
+
+    function getCourseCapacityStatus(sections) {
+        const uniqueSections = getUniqueByClassNbr(sections);
+        let totalCapacity = 0;
+        let totalEnrolled = 0;
+        let hasUnlimited = false;
+
+        uniqueSections.forEach(s => {
+            if (s.cap_enrl === null || s.cap_enrl === undefined) {
+                hasUnlimited = true;
+            } else {
+                totalCapacity += s.cap_enrl;
+            }
+            totalEnrolled += s.tot_enrl || 0;
+        });
+
+        const isOverfilled = !hasUnlimited && totalEnrolled > totalCapacity;
+        const percent = hasUnlimited ? 0 : (totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0);
+
+        return { totalCapacity, totalEnrolled, hasUnlimited, isOverfilled, percent };
+    }
+
+    function renderCourseCard(course, coursesSectionsMap) {
+        const sections = coursesSectionsMap[course.id] || [];
+        const uniqueComponents = [...new Set(sections.map(s => s.component))];
+        const uniqueSectionsCount = new Set(sections.map(s => s.class_nbr)).size;
+        const { totalCapacity, totalEnrolled, hasUnlimited, isOverfilled, percent } = getCourseCapacityStatus(sections);
+
+        let capacityBarColor = 'bg-green-500';
+        if (percent > 80) capacityBarColor = 'bg-amber-500';
+        if (percent > 100 || isOverfilled) capacityBarColor = 'bg-red-500';
+
+        return `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group" onclick="showSections('${course.id}')">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-lg font-semibold text-gray-900 group-hover:text-primary transition-colors">${course.subject} ${course.catalog}</h3>
+                        <p class="text-sm text-gray-600 truncate" title="${course.title}">${course.title}</p>
+                    </div>
+                    <span class="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 whitespace-nowrap">
+                        ${course.max_units || '-'} units
+                    </span>
+                </div>
+
+                <!-- Capacity Bar -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between text-xs mb-1">
+                        <span class="text-gray-500">Enrollment</span>
+                        <span class="${isOverfilled ? 'text-red-600 font-medium' : 'text-gray-600'}">
+                            ${totalEnrolled}${hasUnlimited ? '' : ` / ${totalCapacity}`}
+                            ${hasUnlimited ? ' <span class="text-gray-400">(some unlimited)</span>' : ''}
+                        </span>
+                    </div>
+                    ${!hasUnlimited ? `
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="${capacityBarColor} h-full rounded-full transition-all" style="width: ${Math.min(percent, 100)}%"></div>
+                        </div>
+                    ` : `
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="bg-gray-300 h-full rounded-full" style="width: 100%"></div>
+                        </div>
+                    `}
+                </div>
+
+                <div class="flex items-center justify-between text-sm">
+                    <div class="flex flex-wrap gap-1">
+                        ${uniqueComponents.map(comp => `
+                            <span class="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600">${comp}</span>
+                        `).join('')}
+                    </div>
+                    <span class="text-gray-500 flex items-center">
+                        <i class="fas fa-layer-group mr-1 text-xs"></i>
+                        ${uniqueSectionsCount}
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCourseListItem(course, coursesSectionsMap) {
+        const sections = coursesSectionsMap[course.id] || [];
+        const uniqueComponents = [...new Set(sections.map(s => s.component))];
+        const uniqueSectionsCount = new Set(sections.map(s => s.class_nbr)).size;
+        const { totalCapacity, totalEnrolled, hasUnlimited, isOverfilled, percent } = getCourseCapacityStatus(sections);
+
+        let statusColor = 'text-green-600';
+        if (percent > 80) statusColor = 'text-amber-600';
+        if (percent > 100 || isOverfilled) statusColor = 'text-red-600';
+
+        return `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer" onclick="showSections('${course.id}')">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4 flex-1 min-w-0">
+                        <div class="flex-shrink-0 w-20">
+                            <span class="font-semibold text-gray-900">${course.subject} ${course.catalog}</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm text-gray-600 truncate">${course.title}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            ${uniqueComponents.map(comp => `
+                                <span class="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600">${comp}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-6 ml-4">
+                        <div class="text-right">
+                            <div class="text-xs text-gray-500">Sections</div>
+                            <div class="font-medium text-gray-900">${uniqueSectionsCount}</div>
+                        </div>
+                        <div class="text-right w-24">
+                            <div class="text-xs text-gray-500">Enrollment</div>
+                            <div class="font-medium ${statusColor}">
+                                ${totalEnrolled}${hasUnlimited ? '' : ` / ${totalCapacity}`}
+                            </div>
+                        </div>
+                        <div class="text-gray-400">
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function showSections(courseId) {
+        currentCourseId = courseId;
+        const course = coursesData.find(c => c.id === courseId);
+        const sections = sectionsData.filter(s => s.course_id === courseId);
+
+        document.getElementById('modal-course-title').textContent = `${course.subject} ${course.catalog}`;
+        document.getElementById('modal-course-subtitle').textContent = course.title;
+
+        // Group by component
+        const componentGroups = {};
+        sections.forEach(section => {
+            if (!componentGroups[section.component]) {
+                componentGroups[section.component] = [];
+            }
+            componentGroups[section.component].push(section);
+        });
+
+        // Course stats
+        const { totalCapacity, totalEnrolled, hasUnlimited, isOverfilled, percent } = getCourseCapacityStatus(sections);
+        const uniqueSectionsCount = new Set(sections.map(s => s.class_nbr)).size;
+
+        document.getElementById('modal-course-stats').innerHTML = `
+            <div class="flex items-center justify-between space-x-4 overflow-x-auto pb-1">
+                <div class="flex items-center space-x-3 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-100 min-w-[140px]">
+                    <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-gray-900">${course.max_units || '-'}</div>
+                        <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Units</div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-100 min-w-[140px]">
+                    <div class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-gray-900">${uniqueSectionsCount}</div>
+                        <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Sections</div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-100 min-w-[140px]">
+                    <div class="p-2 ${isOverfilled ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'} rounded-lg">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold ${isOverfilled ? 'text-red-600' : 'text-gray-900'}">${totalEnrolled}</div>
+                        <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Enrolled</div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-100 min-w-[140px]">
+                    <div class="p-2 bg-gray-100 text-gray-600 rounded-lg">
+                        <i class="fas fa-chair"></i>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-gray-900">${hasUnlimited ? '∞' : totalCapacity}</div>
+                        <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Capacity</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        renderModalSections(componentGroups);
+        
+        // Animation for modal opening
+        const modal = document.getElementById('section-modal');
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+            modal.querySelector('div').classList.add('scale-100', 'opacity-100');
+        });
+    }
+
+    function renderModalSections(componentGroups) {
+        const sectionsList = document.getElementById('modal-sections-list');
+        const components = Object.keys(componentGroups).sort();
+
+        if (components.length === 0) {
+            sectionsList.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 text-gray-500">
+                    <i class="fas fa-folder-open text-4xl mb-3 text-gray-300"></i>
+                    <p>No sections available for this course</p>
+                </div>`;
+            return;
+        }
+
+        let html = '<div class="space-y-8">';
+
+        components.forEach(comp => {
+            const sections = componentGroups[comp];
+            const count = new Set(sections.map(s => s.class_nbr)).size;
+            
+            // Component Header
+            html += `
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2 pb-2 border-b border-gray-100">
+                        <span class="px-2.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                            ${comp}
+                        </span>
+                        <span class="text-sm text-gray-400 font-medium">${count} section${count !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            `;
+
+            // Group by class_nbr
+            const groupedByClassNbr = {};
+            sections.forEach(section => {
+                if (!groupedByClassNbr[section.class_nbr]) {
+                    groupedByClassNbr[section.class_nbr] = [];
+                }
+                groupedByClassNbr[section.class_nbr].push(section);
+            });
+
+            Object.entries(groupedByClassNbr).forEach(([classNbr, secs]) => {
+                const first = secs[0];
+                const cap = first.cap_enrl;
+                const tot = first.tot_enrl || 0;
+                const isUnlimited = cap === null || cap === undefined;
+                const available = isUnlimited ? Infinity : Math.max(0, cap - tot);
+                const isOverfilled = !isUnlimited && tot > cap;
+                const percent = isUnlimited ? 0 : (cap > 0 ? Math.round((tot / cap) * 100) : 0);
+
+                let statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                let barColor = 'bg-emerald-500';
+                let statusText = `${available} left`;
+
+                if (isUnlimited) {
+                    statusColor = 'bg-gray-50 text-gray-600 border-gray-100';
+                    statusText = 'Unlimited';
+                } else if (isOverfilled) {
+                    statusColor = 'bg-red-50 text-red-700 border-red-100';
+                    barColor = 'bg-red-500';
+                    statusText = 'Overfilled';
+                } else if (available === 0) {
+                    statusColor = 'bg-amber-50 text-amber-700 border-amber-100';
+                    barColor = 'bg-amber-500';
+                    statusText = 'Full';
+                }
+
+                html += `
+                    <div class="group bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-primary/30 transition-all duration-200">
+                        <!-- Section Header -->
+                        <div class="p-3 flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex flex-col">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-bold text-gray-900">${first.section}</span>
+                                        <span class="px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold rounded border ${statusColor}">
+                                            ${statusText}
+                                        </span>
+                                    </div>
+                                    <span class="text-[10px] text-gray-400 font-mono mt-0.5">#${classNbr}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Capacity Input -->
+                            <div class="flex items-center">
+                                <div class="text-right mr-2">
+                                    <div class="flex items-center justify-end space-x-1">
+                                        <span class="text-sm font-semibold ${isOverfilled ? 'text-red-600' : 'text-gray-900'}">${tot}</span>
+                                        <span class="text-gray-400 text-xs">/</span>
+                                        <input type="text" 
+                                            id="capacity-${classNbr}"
+                                            value="${isUnlimited ? '' : cap}"
+                                            placeholder="∞"
+                                            onclick="event.stopPropagation()"
+                                            onblur="saveCapacityInline(${classNbr}, this.value, ${tot})"
+                                            onkeydown="handleCapacityKeydown(event, ${classNbr}, ${tot})"
+                                            class="w-12 px-1 py-0.5 text-right text-xs font-medium border-b border-gray-300 focus:border-primary focus:ring-0 bg-transparent transition-colors placeholder-gray-300 hover:border-gray-400"
+                                            title="Edit capacity">
+                                    </div>
+                                </div>
+                                ${!isUnlimited ? `
+                                    <div class="w-1 h-8 bg-gray-100 rounded-full overflow-hidden flex flex-col justify-end">
+                                        <div class="${barColor} w-full rounded-full transition-all duration-500" style="height: ${Math.min(percent, 100)}%"></div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Meeting Times -->
+                        <div class="bg-gray-50/50 px-3 py-2.5 border-t border-gray-100 space-y-1.5">
+                            ${secs.map(s => `
+                                <div class="flex flex-col text-xs group/time">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center text-gray-700">
+                                            <i class="fas fa-clock w-3.5 text-gray-300 mr-1.5"></i>
+                                            <span class="font-medium mr-1">${s.day || 'TBA'}</span>
+                                            <span>${formatTime(s.mtg_start)} - ${formatTime(s.mtg_end)}</span>
+                                        </div>
+                                        <div class="flex items-center text-gray-500">
+                                            <i class="fas fa-map-marker-alt w-3.5 text-gray-300 mr-1.5"></i>
+                                            ${s.room || 'TBA'}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                            
+                            ${first.instructor ? `
+                                <div class="flex items-center text-xs text-gray-600 pt-1.5 mt-1 border-t border-dashed border-gray-200">
+                                    <i class="fas fa-user-tie w-3.5 text-gray-400 mr-1.5"></i>
+                                    <span class="truncate" title="${first.instructor}">${first.instructor}</span>
+                                </div>
+                            ` : ''}
+                            
+                            ${first.exam_date ? `
+                                <div class="flex items-center text-[10px] text-gray-500 pt-1.5 mt-1 border-t border-dashed border-gray-200">
+                                    <span class="bg-gray-200 text-gray-600 px-1 py-0 rounded-[3px] uppercase font-bold mr-2">Exam</span>
+                                    ${formatDate(first.exam_date)} • ${formatTime(first.exam_start)}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        sectionsList.innerHTML = html;
+    }
+
+    function openCapacityEdit(classNbr, section, component, currentEnrollment, currentCapacity) {
+        currentEditSection = { classNbr, section, component, currentEnrollment, currentCapacity };
+
+        document.getElementById('capacity-edit-section-info').textContent = `Section ${section} (${component}) - Class #${classNbr}`;
+        document.getElementById('capacity-edit-current').textContent = currentEnrollment;
+        document.getElementById('capacity-edit-input').value = currentCapacity === null ? '' : currentCapacity;
+
+        // Show warning if reducing below current enrollment
+        updateCapacityWarning();
+
+        document.getElementById('capacity-edit-modal').classList.remove('hidden');
+        document.getElementById('capacity-edit-input').focus();
+    }
+
+    function updateCapacityWarning() {
+        const input = document.getElementById('capacity-edit-input');
+        const warning = document.getElementById('capacity-edit-warning');
+        const warningText = document.getElementById('capacity-edit-warning-text');
+
+        const newCapacity = input.value === '' ? null : parseInt(input.value);
+        const { currentEnrollment } = currentEditSection;
+
+        if (newCapacity !== null && newCapacity < currentEnrollment) {
+            warning.classList.remove('hidden');
+            warningText.textContent = `New capacity (${newCapacity}) is less than current enrollment (${currentEnrollment}). This section will be marked as overfilled.`;
+        } else {
+            warning.classList.add('hidden');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('capacity-edit-input');
+        if (input) {
+            input.addEventListener('input', updateCapacityWarning);
+        }
+    });
+
+    function handleCapacityKeydown(event, classNbr, currentEnrollment) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            event.target.blur();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            // Restore original value
+            const section = sectionsData.find(s => s.class_nbr === classNbr);
+            if (section) {
+                event.target.value = section.cap_enrl === null || section.cap_enrl === undefined ? '' : section.cap_enrl;
+            }
+            event.target.blur();
+        }
+    }
+
+    async function saveCapacityInline(classNbr, value, currentEnrollment) {
+        const newCapacity = value.trim() === '' ? null : parseInt(value);
+        
+        // Get original value
+        const section = sectionsData.find(s => s.class_nbr === classNbr);
+        if (!section) return;
+        
+        const originalCapacity = section.cap_enrl;
+        
+        // No change, skip save
+        if (newCapacity === originalCapacity) return;
+        
+        // Validate
+        if (value.trim() !== '' && (isNaN(newCapacity) || newCapacity < 0)) {
+            showToast('Please enter a valid capacity (0 or greater)', 'error');
+            document.getElementById(`capacity-${classNbr}`).value = originalCapacity === null ? '' : originalCapacity;
+            return;
+        }
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/courses/sections/${classNbr}/capacity`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cap_enrl: newCapacity })
+            });
+
+            if (res && res.ok) {
+                // Update local data
+                sectionsData = sectionsData.map(s => {
+                    if (s.class_nbr === classNbr) {
+                        return { ...s, cap_enrl: newCapacity };
+                    }
+                    return s;
+                });
+
+                showSections(currentCourseId); // Refresh modal
+                renderCourses(); // Refresh grid
+                showToast('Capacity updated successfully', 'success');
+            } else {
+                const error = await res.json();
+                showToast(error.detail || 'Failed to update capacity', 'error');
+                // Restore original value on error
+                document.getElementById(`capacity-${classNbr}`).value = originalCapacity === null ? '' : originalCapacity;
+            }
+        } catch (error) {
+            console.error('Error updating capacity:', error);
+            showToast('Failed to update capacity', 'error');
+            // Restore original value on error
+            document.getElementById(`capacity-${classNbr}`).value = originalCapacity === null ? '' : originalCapacity;
+        }
+    }
+
+    async function saveCapacity() {
+        const input = document.getElementById('capacity-edit-input');
+        const newCapacity = input.value === '' ? null : parseInt(input.value);
+        const { classNbr } = currentEditSection;
+
+        const saveBtn = document.getElementById('capacity-save-btn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/courses/sections/${classNbr}/capacity`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cap_enrl: newCapacity })
+            });
+
+            if (res && res.ok) {
+                // Update local data
+                sectionsData = sectionsData.map(s => {
+                    if (s.class_nbr === classNbr) {
+                        return { ...s, cap_enrl: newCapacity };
+                    }
+                    return s;
+                });
+
+                hideCapacityEditModal();
+                showSections(currentCourseId); // Refresh modal
+                renderCourses(); // Refresh grid
+                showToast('Capacity updated successfully', 'success');
+            } else {
+                const error = await res.json();
+                showToast(error.detail || 'Failed to update capacity', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating capacity:', error);
+            showToast('Failed to update capacity', 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Save Changes';
+        }
+    }
+
+    function hideCapacityEditModal() {
+        document.getElementById('capacity-edit-modal').classList.add('hidden');
+        currentEditSection = null;
+    }
+
+    function hideModal() {
+        document.getElementById('section-modal').classList.add('hidden');
+        currentCourseId = null;
+    }
+
+    function formatTime(timeStr) {
+        if (!timeStr) return 'TBA';
+        const [hours, minutes] = timeStr.split(':');
+        const h = parseInt(hours);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${minutes} ${ampm}`;
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return 'TBA';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        const icon = document.getElementById('toast-icon');
+        const messageEl = document.getElementById('toast-message');
+
+        messageEl.textContent = message;
+
+        if (type === 'success') {
+            icon.className = 'fas fa-check-circle text-green-400';
+        } else if (type === 'error') {
+            icon.className = 'fas fa-exclamation-circle text-red-400';
+        }
+
+        toast.classList.remove('hidden');
+        setTimeout(() => {
+            toast.classList.remove('translate-y-full', 'opacity-0');
+        }, 10);
+
+        setTimeout(() => {
+            toast.classList.add('translate-y-full', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 300);
+        }, 3000);
+    }
+
+    // Close modals on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (!document.getElementById('capacity-edit-modal').classList.contains('hidden')) {
+                hideCapacityEditModal();
+            } else {
+                hideModal();
+            }
+        }
+    });
+
+    // Close modal on backdrop click
+    document.getElementById('section-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'section-modal') hideModal();
+    });
+
+    document.getElementById('capacity-edit-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'capacity-edit-modal') hideCapacityEditModal();
+    });
+
+    // Load courses on page load
+    loadCourses();
+</script>
+{% endblock %}

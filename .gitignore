@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Project specific
+.env
+.env.local
+uploads/
+exports/
+*.db
+*.sqlite3
+
+# Real student data - never commit. These hold names, campus IDs, birthdates and
+# enrolment records for thousands of students. Keep them local only.
+data/
+sample_files/
+*.xlsx
+*.xls
+
+# Previous git history, kept locally after starting a fresh repo
+.git-backup-*/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# UV
+.uv/
+
+.other/
+
+logs/
+backups/

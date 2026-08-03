@@ -1,0 +1,2964 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Timetable - AUGSD Portal{% endblock %}
+
+{% block head %}
+<style>
+/* Calendar Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: 70px repeat(6, 1fr);
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+.calendar-header {
+    background: #f9fafb;
+    padding: 0.75rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.time-slot {
+    background: #f9fafb;
+    padding: 0.5rem;
+    font-size: 0.7rem;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: center;
+}
+.calendar-cell {
+    border-bottom: 1px solid #e5e7eb;
+    border-left: 1px solid #e5e7eb;
+    min-height: 40px;
+    position: relative;
+}
+.course-block {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    padding: 4px 6px;
+    font-size: 0.65rem;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s, z-index 0s;
+    z-index: 1;
+}
+.course-block:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 20;
+}
+.course-color-0 { background: #dbeafe; border-left: 3px solid #2563eb; }
+.course-color-1 { background: #dcfce7; border-left: 3px solid #16a34a; }
+.course-color-2 { background: #fef3c7; border-left: 3px solid #d97706; }
+.course-color-3 { background: #ede9fe; border-left: 3px solid #7c3aed; }
+.course-color-4 { background: #fce7f3; border-left: 3px solid #db2777; }
+.course-color-5 { background: #ccfbf1; border-left: 3px solid #0d9488; }
+.course-color-6 { background: #fee2e2; border-left: 3px solid #dc2626; }
+
+/* Course Card */
+.course-card {
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: white;
+}
+.course-card:hover {
+    border-color: #93c5fd;
+    background: #f8fafc;
+}
+.course-card.selected {
+    background: #eff6ff;
+    border-color: #3b82f6;
+}
+.course-card.has-pin {
+    background: #fffbeb;
+    border-color: #fcd34d;
+}
+
+/* Section Option */
+.section-option {
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: white;
+}
+.section-option:hover:not(.disabled):not(.current) {
+    border-color: #93c5fd;
+    background: #f8fafc;
+}
+.section-option.selected {
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+.section-option.current {
+    background: #f0fdf4;
+    border-color: #22c55e;
+}
+.section-option.disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+.section-option.conflict {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+.section-option.full {
+    background: #f9fafb;
+    border-color: #e5e7eb;
+}
+
+/* Sticky Sidebar */
+.sticky-sidebar {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+/* Toast */
+#toast-container {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.toast {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    color: white;
+    font-size: 0.875rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.2s ease;
+}
+.toast.success { background: #22c55e; }
+.toast.error { background: #ef4444; }
+.toast.warning { background: #f59e0b; }
+.toast.info { background: #3b82f6; }
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.25rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    min-width: 280px;
+    z-index: 50;
+}
+.package-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 0.25rem;
+}
+.package-item:hover {
+    background: #f3f4f6;
+}
+.package-item.all-available {
+    background: #f0fdf4;
+}
+.package-item.all-available:hover {
+    background: #dcfce7;
+}
+
+/* Search Enhancements */
+.search-container {
+    position: relative;
+}
+.search-input-wrapper {
+    position: relative;
+}
+.search-input-wrapper input {
+    width: 100%;
+    padding: 0.875rem 1rem 0.875rem 2.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    font-size: 0.9375rem;
+    transition: all 0.15s;
+}
+.search-input-wrapper input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 1rem;
+}
+.search-input-wrapper .clear-btn {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: all 0.15s;
+}
+.search-input-wrapper .clear-btn:hover {
+    color: #6b7280;
+    background: #f3f4f6;
+}
+
+/* Filter Tags */
+.filter-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.filter-tag {
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+}
+.filter-tag.inactive {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+.filter-tag.inactive:hover {
+    background: #e5e7eb;
+}
+.filter-tag.active {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+}
+
+/* Search Results */
+.search-results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+.result-count {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Swap Modal Enhancements */
+.swap-section-group {
+    margin-bottom: 1.5rem;
+}
+.swap-section-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+.swap-section-group-title {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #374151;
+}
+.swap-section-group-count {
+    font-size: 0.7rem;
+    color: #9ca3af;
+}
+
+/* Section Card in Swap Modal */
+.swap-section-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+    transition: all 0.15s;
+}
+.swap-section-card:hover:not(.disabled) {
+    border-color: #93c5fd;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.swap-section-card.current {
+    border-color: #22c55e;
+    background: #f0fdf4;
+}
+.swap-section-card.available {
+    cursor: pointer;
+}
+.swap-section-card.available:hover {
+    background: #f8fafc;
+}
+.swap-section-card.conflict {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+.swap-section-card.full {
+    background: #f9fafb;
+}
+.swap-section-card.disabled {
+    cursor: not-allowed;
+}
+.swap-section-header {
+    padding: 0.75rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.swap-section-info {
+    flex: 1;
+    min-width: 0;
+}
+.swap-section-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+.swap-section-details {
+    padding: 0 0.75rem 0.75rem;
+}
+.swap-section-time {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+}
+.swap-conflict-reason {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: #fef2f2;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    color: #dc2626;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 1rem;
+}
+.tab {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+}
+.tab:hover {
+    color: #374151;
+}
+.tab.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+}
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.375rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}/students" class="hover:text-primary">Students</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Generate Timetable</span>
+    </div>
+
+    <!-- Header Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <i class="fas fa-calendar-plus text-blue-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <h1 class="text-xl font-bold text-gray-900" id="student-name">Loading...</h1>
+                    <div class="flex items-center space-x-3 text-sm text-gray-600">
+                        <span id="student-campus-id">-</span>
+                        <span class="text-gray-300">·</span>
+                        <span>Generate Timetable</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div id="existing-warning" class="hidden">
+                    <div class="flex items-center space-x-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                        <i class="fas fa-exclamation-triangle text-amber-600"></i>
+                        <span class="text-sm text-amber-700">Existing timetable</span>
+                        <button onclick="uncommitTimetable()" class="text-sm text-amber-800 underline font-medium hover:text-amber-900">
+                            Uncommit
+                        </button>
+                    </div>
+                </div>
+                <!-- Quick Add from Package -->
+                <div class="relative" id="quick-add-container">
+                    <button onclick="toggleQuickAdd()" id="quick-add-btn"
+                        class="px-4 py-2 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+                        <i class="fas fa-bolt"></i>
+                        Quick Add
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </button>
+                    <div id="quick-add-menu" class="dropdown-menu hidden" style="min-width: 300px;">
+                        <div class="p-2 border-b border-gray-100">
+                            <p class="text-xs font-medium text-gray-500">Suggested Course Packages</p>
+                        </div>
+                        <div id="packages-container" class="p-2 max-h-[300px] overflow-y-auto">
+                            <span class="text-xs text-gray-400 px-2">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Assign Pre-generated Timetable -->
+                <button onclick="openAssignTimetableModal()" id="assign-tt-btn"
+                    class="px-4 py-2 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+                    <i class="fas fa-layer-group"></i>
+                    Assign Timetable
+                </button>
+                <a href="/session/{{ session.id }}/student/{{ student_id }}/advanced-generate"
+                   class="px-4 py-2 text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 text-sm transition-colors">
+                    <i class="fas fa-cogs mr-2"></i>Advanced Mode
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="flex gap-6">
+        <!-- LEFT: Calendar Preview -->
+        <div class="flex-1 min-w-0 space-y-6">
+            <!-- Calendar Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="font-semibold text-gray-900">
+                        <i class="fas fa-calendar-alt text-blue-500 mr-2"></i>Timetable Preview
+                    </h2>
+                    <div class="flex items-center space-x-4 text-sm">
+                        <span class="text-gray-500">
+                            <span id="total-units" class="font-medium text-gray-900">0</span> units
+                        </span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <div id="calendar-empty" class="text-center py-16">
+                        <i class="fas fa-calendar-plus text-5xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-500 font-medium mb-2">No timetable generated yet</p>
+                        <p class="text-sm text-gray-400">Select courses and click Generate</p>
+                    </div>
+                    <!-- Conflicts Panel -->
+                    <div id="conflicts-panel" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <h3 class="font-medium text-red-800 mb-3">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>Scheduling Conflicts
+                        </h3>
+                        <p class="text-sm text-red-700 mb-3">The following courses could not be scheduled due to conflicts:</p>
+                        <div id="conflicts-list" class="space-y-3"></div>
+                    </div>
+                    <div id="calendar-grid" class="calendar-grid hidden"></div>
+                </div>
+            </div>
+
+            <!-- Schedule Details (shown after generation) -->
+            <div id="schedule-details-card" class="bg-white rounded-xl shadow-sm border border-gray-200 hidden">
+                <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="font-semibold text-gray-900">
+                        <i class="fas fa-list-alt text-green-500 mr-2"></i>Schedule Details
+                    </h2>
+                    <span class="text-xs text-gray-500">Click on any section to swap</span>
+                </div>
+                <div id="schedule-details" class="p-4 space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Course Selection -->
+        <div class="w-[420px] flex-shrink-0">
+            <div class="sticky-sidebar space-y-4">
+                <!-- Actions Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-4 space-y-3">
+                        <div class="flex gap-2">
+                            <button onclick="generateTimetable()" id="generate-btn" disabled
+                                class="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm">
+                                <i class="fas fa-magic mr-2"></i>Generate
+                            </button>
+                            <button onclick="confirmAndCommit()" id="save-btn" disabled
+                                class="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm hidden">
+                                <i class="fas fa-check mr-2"></i>Save
+                            </button>
+                            <!-- Save Draft Button -->
+                            <div class="relative">
+                                <button onclick="toggleDraftsMenu()" id="drafts-btn"
+                                    class="px-3 py-2.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 border border-purple-200 rounded-lg transition-colors"
+                                    title="Save for later / Load draft">
+                                    <i class="fas fa-bookmark"></i>
+                                </button>
+                                <div id="drafts-menu" class="dropdown-menu hidden" style="min-width: 280px; right: 0;">
+                                    <div class="p-2 border-b border-gray-100">
+                                        <p class="text-xs font-medium text-gray-500">Saved Drafts</p>
+                                    </div>
+                                    <div id="drafts-list" class="max-h-[200px] overflow-y-auto">
+                                        <div class="p-3 text-center text-xs text-gray-400">
+                                            <i class="fas fa-spinner fa-spin mr-1"></i>Loading...
+                                        </div>
+                                    </div>
+                                    <div class="p-2 border-t border-gray-100">
+                                        <button onclick="openSaveDraftModal()" id="save-draft-btn" disabled
+                                            class="w-full px-3 py-2 text-sm text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <i class="fas fa-plus mr-1"></i>Save current selection
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Settings -->
+                            <div class="relative">
+                                <button onclick="toggleSettings()"
+                                    class="px-3 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+                                    title="Preferences">
+                                    <i class="fas fa-sliders-h"></i>
+                                </button>
+                                <div id="settings-menu" class="dropdown-menu hidden" style="min-width: 220px;">
+                                    <div class="p-3">
+                                        <p class="text-xs font-medium text-gray-500 mb-3">Prefer sections with available seats:</p>
+                                        <label class="flex items-center space-x-2 cursor-pointer mb-2">
+                                            <input type="checkbox" id="pref-lab" checked
+                                                class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary">
+                                            <span class="text-sm text-gray-700">LAB sections</span>
+                                        </label>
+                                        <label class="flex items-center space-x-2 cursor-pointer mb-2">
+                                            <input type="checkbox" id="pref-tut" checked
+                                                class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary">
+                                            <span class="text-sm text-gray-700">TUT sections</span>
+                                        </label>
+                                        <label class="flex items-center space-x-2 cursor-pointer">
+                                            <input type="checkbox" id="pref-lec"
+                                                class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary">
+                                            <span class="text-sm text-gray-700">LEC sections</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Card - PROMINENT -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-4">
+                        <!-- Big Search Input -->
+                        <div class="search-container">
+                            <div class="search-input-wrapper">
+                                <i class="fas fa-search search-icon"></i>
+                                <input type="text" id="search-input"
+                                    placeholder="Search courses by code or title..."
+                                    oninput="debounceSearch()"
+                                    autocomplete="off">
+                                <span id="clear-search" class="clear-btn hidden" onclick="clearSearch()">
+                                    <i class="fas fa-times"></i>
+                                </span>
+                            </div>
+
+                            <!-- Quick Filter Tags -->
+                            <div class="filter-tags" id="filter-tags">
+                                <span class="filter-tag active" data-filter="all" onclick="setFilter('all')">All</span>
+                                <!-- Dynamic subject tags will be added here -->
+                            </div>
+                        </div>
+
+                        <!-- Tabs for Search/Selected -->
+                        <div class="tabs mt-4">
+                            <div class="tab active" data-tab="search" onclick="switchTab('search')">
+                                <i class="fas fa-search mr-1.5 text-xs"></i>Search
+                                <span id="search-count-badge" class="tab-badge bg-gray-100 text-gray-600 hidden">0</span>
+                            </div>
+                            <div class="tab" data-tab="selected" onclick="switchTab('selected')">
+                                <i class="fas fa-check-circle mr-1.5 text-xs"></i>Selected
+                                <span id="selected-count-badge" class="tab-badge bg-blue-100 text-blue-700">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Search Results Tab -->
+                        <div id="search-tab" class="tab-content">
+                            <div id="search-results-header" class="search-results-header hidden">
+                                <span class="result-count"><span id="result-count">0</span> courses found</span>
+                                <button onclick="selectAllVisible()" class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                                    Select all visible
+                                </button>
+                            </div>
+                            <div id="course-grid" class="space-y-2 max-h-[400px] overflow-y-auto">
+                                <div class="text-center py-8">
+                                    <i class="fas fa-search text-4xl text-gray-200 mb-3"></i>
+                                    <p class="text-sm text-gray-500 font-medium">Search for courses</p>
+                                    <p class="text-xs text-gray-400 mt-1">Type a course code like "CS F111" or search by title</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Selected Courses Tab -->
+                        <div id="selected-tab" class="tab-content hidden">
+                            <div id="selected-list" class="space-y-2 max-h-[400px] overflow-y-auto">
+                                <div class="text-center py-8">
+                                    <i class="fas fa-inbox text-4xl text-gray-200 mb-3"></i>
+                                    <p class="text-sm text-gray-500 font-medium">No courses selected</p>
+                                    <p class="text-xs text-gray-400 mt-1">Search and select courses to add them here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Swap Section Modal - IMPROVED -->
+<div id="swap-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-xl w-full max-h-[85vh] overflow-hidden border border-gray-200">
+        <div class="p-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-semibold text-gray-900" id="swap-modal-title">Swap Section</h3>
+                    <p class="text-xs text-gray-500 mt-0.5" id="swap-modal-subtitle">Select an alternative section</p>
+                </div>
+                <button onclick="closeSwapModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="p-4 overflow-y-auto max-h-[65vh]" id="swap-modal-body">
+            <div class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+            </div>
+        </div>
+        <div class="p-3 border-t border-gray-200 bg-gray-50">
+            <div class="flex items-center justify-between text-xs text-gray-500">
+                <span><i class="fas fa-info-circle mr-1"></i>Sections marked as "Clash" conflict with your current timetable</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pin Sections Modal -->
+<div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden border border-gray-200">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-gray-900" id="pin-modal-title">Pin Sections</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Lock specific sections for this course</p>
+            </div>
+            <button onclick="closePinModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 overflow-y-auto max-h-[50vh]" id="pin-modal-body">
+            <div class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 flex justify-end gap-3">
+            <button onclick="closePinModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                Cancel
+            </button>
+            <button onclick="savePins()" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm">
+                <i class="fas fa-thumbtack mr-1"></i>Save Pins
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Save Modal -->
+<div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full border border-gray-200 max-h-[90vh] flex flex-col">
+        <div class="p-6 overflow-y-auto">
+            <div class="text-center mb-6">
+                <div class="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center bg-green-100">
+                    <i class="fas fa-check-circle text-2xl text-green-600"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Save Timetable</h3>
+                <p class="text-sm text-gray-500">This will reserve your seats in the selected sections.</p>
+            </div>
+            
+            <!-- Prerequisites Preview -->
+            <div id="prereq-preview" class="mb-6">
+                <h4 class="font-medium text-gray-900 mb-2 text-sm border-b pb-1 flex justify-between items-center">
+                    <span>Prerequisites Check</span>
+                    <span class="text-xs text-gray-500 font-normal">Global requirements</span>
+                </h4>
+                <div id="prereq-list" class="bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto text-sm space-y-4 border border-gray-100">
+                    <div class="text-center text-gray-400 py-2"><i class="fas fa-spinner fa-spin"></i> Loading prerequisites...</div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 justify-center mt-2">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                    Cancel
+                </button>
+                <button onclick="commitTimetable()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <i class="fas fa-check mr-1"></i>Confirm & Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Save Draft Modal -->
+<div id="save-draft-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full border border-gray-200">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-gray-900">Save Draft</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Save your current selection for later</p>
+            </div>
+            <button onclick="closeSaveDraftModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Name <span class="text-red-500">*</span></label>
+                <input type="text" id="draft-name" placeholder="e.g., Monday-heavy schedule"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <textarea id="draft-notes" rows="2" placeholder="Any notes about this draft..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm resize-none"></textarea>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-3 text-sm">
+                <p class="text-purple-800 font-medium mb-1"><i class="fas fa-info-circle mr-1"></i>What will be saved:</p>
+                <ul class="text-purple-700 text-xs space-y-1 ml-4">
+                    <li>• <span id="draft-course-count">0</span> selected courses</li>
+                    <li>• Pinned section preferences</li>
+                    <li>• Seat preferences (LAB/TUT/LEC)</li>
+                </ul>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 flex justify-end gap-3">
+            <button onclick="closeSaveDraftModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                Cancel
+            </button>
+            <button onclick="saveDraft()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                <i class="fas fa-bookmark mr-1"></i>Save Draft
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Buffer Timetable Modal -->
+<div id="assign-tt-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-3xl w-full border border-gray-200 max-h-[90vh] flex flex-col">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-gray-900">
+                    <i class="fas fa-layer-group text-purple-600 mr-2"></i>
+                    Assign Pre-generated Timetable
+                </h3>
+                <p class="text-xs text-gray-500 mt-0.5">Select a timetable to assign to this student</p>
+            </div>
+            <button onclick="closeAssignTimetableModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto">
+            <!-- Student Info -->
+            <div class="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-100">
+                <div class="flex items-center">
+                    <i class="fas fa-user-graduate text-blue-600 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-gray-800" id="assign-student-name">Loading...</p>
+                        <p class="text-xs text-gray-600">
+                            Branch: <span id="assign-student-branch" class="font-medium">-</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Available Timetables -->
+            <div id="assign-tt-list" class="space-y-3">
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-2"></i>
+                    <p class="text-sm text-gray-500">Loading available timetables...</p>
+                </div>
+            </div>
+
+            <!-- No timetables message -->
+            <div id="assign-tt-empty" class="hidden text-center py-8">
+                <i class="fas fa-calendar-times text-4xl text-gray-300 mb-3"></i>
+                <p class="text-gray-500 font-medium">No buffer timetables available</p>
+                <p class="text-sm text-gray-400 max-w-md mx-auto">
+                    Upload buffer CSVs from the session dashboard, or generate and
+                    <strong>save</strong> buckets on the
+                    <a href="/session/{{ session.id }}/timetable-buckets" class="text-primary hover:underline">Timetable buckets</a>
+                    page using a <strong>plan</strong> that includes this student’s branch (shown above).
+                </p>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 flex justify-between items-center">
+            <p class="text-xs text-gray-500">
+                <i class="fas fa-info-circle mr-1"></i>
+                Assigning will commit the timetable and reserve seats.
+            </p>
+            <button onclick="closeAssignTimetableModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Timetable Preview Modal (for viewing buffer timetable details) -->
+<div id="tt-preview-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-7xl w-full border border-gray-200 max-h-[95vh] flex flex-col">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-gray-900">
+                    <i class="fas fa-calendar-alt text-blue-600 mr-2"></i>
+                    Timetable Preview
+                </h3>
+                <p class="text-xs text-gray-500 mt-0.5" id="tt-preview-subtitle">-</p>
+            </div>
+            <button onclick="closeTimetablePreview()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto">
+            <div id="tt-preview-content">
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 flex justify-end gap-3">
+            <button onclick="closeTimetablePreview()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                Close
+            </button>
+            <button onclick="confirmAssignFromPreview()" id="confirm-assign-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                <i class="fas fa-check mr-1"></i>Assign This Timetable
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sessionId = '{{ session.id }}';
+const studentId = '{{ student_id }}';
+
+// State
+let allCourses = [];
+let selectedCourses = new Map();
+let packages = [];
+let generated = null;
+let searchTimeout = null;
+let currentPinCourseId = null;
+let currentSwapData = null;
+let activeTab = 'search';
+let activeFilter = 'all';
+let subjectFilters = new Set();
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const START_HOUR = 8;
+const END_HOUR = 19;
+
+// ======================== Initialization ========================
+
+async function init() {
+    initCalendar();
+    await Promise.all([loadStudent(), loadCourses(), loadPackages()]);
+    loadPreferences();
+    buildFilterTags();
+}
+
+function initCalendar() {
+    const container = document.getElementById('calendar-grid');
+    let html = `<div class="calendar-header"></div>`;
+    html += DAY_SHORT.map(day => `<div class="calendar-header">${day}</div>`).join('');
+
+    for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+        const time12 = hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`;
+        html += `<div class="time-slot">${time12}</div>`;
+        DAYS.forEach(day => {
+            html += `<div class="calendar-cell" data-day="${day}" data-hour="${hour}"></div>`;
+        });
+    }
+    container.innerHTML = html;
+}
+
+async function loadStudent() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}`);
+        if (res?.ok) {
+            const data = await res.json();
+            document.getElementById('student-name').textContent = data.name;
+            document.getElementById('student-campus-id').textContent = data.campus_id;
+            checkExisting();
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function loadCourses() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/courses`);
+        if (res?.ok) {
+            allCourses = await res.json();
+            // Extract unique subjects for filters
+            allCourses.forEach(c => subjectFilters.add(c.subject));
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function loadPackages() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/suggested-packages`);
+        if (res?.ok) {
+            const data = await res.json();
+            packages = data.packages || [];
+            renderPackages();
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function checkExisting() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable`);
+        if (res?.ok) {
+            document.getElementById('existing-warning').classList.remove('hidden');
+            document.getElementById('generate-btn').disabled = true;
+        }
+    } catch (e) {}
+}
+
+function buildFilterTags() {
+    const container = document.getElementById('filter-tags');
+    // Get top 5 subjects by course count
+    const subjectCounts = {};
+    allCourses.forEach(c => {
+        subjectCounts[c.subject] = (subjectCounts[c.subject] || 0) + 1;
+    });
+    const topSubjects = Object.entries(subjectCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([s]) => s);
+
+    let html = '<span class="filter-tag active" data-filter="all" onclick="setFilter(\'all\')">All</span>';
+    topSubjects.forEach(subject => {
+        html += `<span class="filter-tag inactive" data-filter="${subject}" onclick="setFilter('${subject}')">${subject}</span>`;
+    });
+    container.innerHTML = html;
+}
+
+// ======================== Tabs ========================
+
+function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    document.getElementById('search-tab').classList.toggle('hidden', tab !== 'search');
+    document.getElementById('selected-tab').classList.toggle('hidden', tab !== 'selected');
+
+    if (tab === 'selected') {
+        renderSelectedCourses();
+    }
+}
+
+// ======================== Filters ========================
+
+function setFilter(filter) {
+    activeFilter = filter;
+    document.querySelectorAll('.filter-tag').forEach(t => {
+        t.classList.toggle('active', t.dataset.filter === filter);
+        t.classList.toggle('inactive', t.dataset.filter !== filter);
+    });
+    searchCourses();
+}
+
+// ======================== Course Search ========================
+
+function debounceSearch() {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(searchCourses, 150);
+
+    // Show/hide clear button
+    const query = document.getElementById('search-input').value;
+    document.getElementById('clear-search').classList.toggle('hidden', !query);
+}
+
+function clearSearch() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('clear-search').classList.add('hidden');
+    searchCourses();
+}
+
+function searchCourses() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    const container = document.getElementById('course-grid');
+    const headerEl = document.getElementById('search-results-header');
+    const countEl = document.getElementById('result-count');
+    const badgeEl = document.getElementById('search-count-badge');
+
+    // Filter courses
+    let filtered = allCourses.filter(c => {
+        // Apply subject filter
+        if (activeFilter !== 'all' && c.subject !== activeFilter) return false;
+
+        // Apply search query
+        if (query) {
+            const searchStr = `${c.subject} ${c.catalog} ${c.subject}${c.catalog} ${c.title}`.toLowerCase();
+            return searchStr.includes(query);
+        }
+        return true;
+    });
+
+    // Show results count
+    if (query || activeFilter !== 'all') {
+        headerEl.classList.remove('hidden');
+        countEl.textContent = filtered.length;
+        badgeEl.textContent = filtered.length;
+        badgeEl.classList.remove('hidden');
+    } else {
+        headerEl.classList.add('hidden');
+        badgeEl.classList.add('hidden');
+    }
+
+    // Limit display
+    const displayCourses = filtered.slice(0, 30);
+
+    if (!query && activeFilter === 'all') {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-search text-4xl text-gray-200 mb-3"></i>
+                <p class="text-sm text-gray-500 font-medium">Search for courses</p>
+                <p class="text-xs text-gray-400 mt-1">Type a course code like "CS F111" or search by title</p>
+            </div>
+        `;
+        return;
+    }
+
+    if (displayCourses.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-search text-4xl text-gray-200 mb-3"></i>
+                <p class="text-sm text-gray-500 font-medium">No courses found</p>
+                <p class="text-xs text-gray-400 mt-1">Try a different search term or filter</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = displayCourses.map(c => {
+        const isSelected = selectedCourses.has(c.id);
+        return `
+            <div class="course-card ${isSelected ? 'selected' : ''}" onclick="toggleCourse('${c.id}')">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="font-semibold text-gray-900">${c.subject} ${c.catalog}</span>
+                            <span class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">${c.max_units || '-'} units</span>
+                        </div>
+                        <p class="text-sm text-gray-600 truncate">${c.title}</p>
+                    </div>
+                    <div class="ml-3 flex-shrink-0">
+                        ${isSelected
+                            ? '<div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center"><i class="fas fa-check text-white text-xs"></i></div>'
+                            : '<div class="w-6 h-6 border-2 border-gray-300 rounded-full"></div>'}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (filtered.length > 30) {
+        container.innerHTML += `
+            <div class="text-center py-3 text-xs text-gray-400">
+                Showing 30 of ${filtered.length} results. Refine your search to see more.
+            </div>
+        `;
+    }
+}
+
+function selectAllVisible() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    let filtered = allCourses.filter(c => {
+        if (activeFilter !== 'all' && c.subject !== activeFilter) return false;
+        if (query) {
+            const searchStr = `${c.subject} ${c.catalog} ${c.subject}${c.catalog} ${c.title}`.toLowerCase();
+            return searchStr.includes(query);
+        }
+        return true;
+    }).slice(0, 30);
+
+    let added = 0;
+    filtered.forEach(c => {
+        if (!selectedCourses.has(c.id)) {
+            selectedCourses.set(c.id, { course: c, pins: {}, sections: null });
+            added++;
+        }
+    });
+
+    if (added > 0) {
+        searchCourses();
+        updateSelectedBadge();
+        clearGenerated();
+        updateButtons();
+        showToast(`Added ${added} course${added > 1 ? 's' : ''}`, 'success');
+    }
+}
+
+// ======================== Course Selection ========================
+
+function toggleCourse(rawId) {
+    const course = allCourses.find(c => c.id == rawId);
+    if (!course) return;
+    const courseId = course.id;
+
+    if (selectedCourses.has(courseId)) {
+        selectedCourses.delete(courseId);
+    } else {
+        selectedCourses.set(courseId, { course, pins: {}, sections: null });
+    }
+    searchCourses();
+    updateSelectedBadge();
+    renderSelectedCourses();
+    clearGenerated();
+    updateButtons();
+}
+
+function updateSelectedBadge() {
+    const badge = document.getElementById('selected-count-badge');
+    badge.textContent = selectedCourses.size;
+    badge.classList.toggle('hidden', selectedCourses.size === 0);
+}
+
+function renderSelectedCourses() {
+    const container = document.getElementById('selected-list');
+
+    if (selectedCourses.size === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-inbox text-4xl text-gray-200 mb-3"></i>
+                <p class="text-sm text-gray-500 font-medium">No courses selected</p>
+                <p class="text-xs text-gray-400 mt-1">Search and select courses to add them here</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    for (const [courseId, data] of selectedCourses) {
+        const c = data.course;
+        const hasPins = Object.values(data.pins).some(v => v !== null);
+
+        html += `
+            <div class="course-card ${hasPins ? 'has-pin' : ''}">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="font-semibold text-gray-900">${c.subject} ${c.catalog}</span>
+                            ${hasPins ? '<span class="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded"><i class="fas fa-thumbtack mr-0.5"></i>Pinned</span>' : ''}
+                        </div>
+                        <p class="text-sm text-gray-600 truncate">${c.title}</p>
+                        ${hasPins ? `<p class="text-xs text-amber-600 mt-1">${renderPinnedText(data)}</p>` : ''}
+                    </div>
+                    <div class="flex items-center space-x-1 ml-2">
+                        <button onclick="event.stopPropagation(); openPinModal('${courseId}')"
+                                class="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Pin sections">
+                            <i class="fas fa-thumbtack"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); toggleCourse('${courseId}')"
+                                class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+function renderPinnedText(data) {
+    const pins = [];
+    for (const [comp, classNbr] of Object.entries(data.pins)) {
+        if (classNbr !== null) {
+            const section = data.sections?.[comp]?.find(s => s.class_nbr === classNbr);
+            pins.push(`${comp}: ${section?.section || '#' + classNbr}`);
+        }
+    }
+    return pins.join(' · ');
+}
+
+function updateButtons() {
+    const hasSelection = selectedCourses.size > 0;
+    const existingWarning = !document.getElementById('existing-warning').classList.contains('hidden');
+
+    document.getElementById('generate-btn').disabled = !hasSelection || existingWarning;
+    document.getElementById('save-btn').disabled = !generated;
+    document.getElementById('save-draft-btn').disabled = !hasSelection;
+
+    if (generated) {
+        document.getElementById('save-btn').classList.remove('hidden');
+    } else {
+        document.getElementById('save-btn').classList.add('hidden');
+    }
+}
+
+// ======================== Quick Add Packages ========================
+
+function renderPackages() {
+    const container = document.getElementById('packages-container');
+
+    if (packages.length === 0) {
+        container.innerHTML = '<p class="text-xs text-gray-400 px-2 py-3 text-center">No packages available for this student</p>';
+        return;
+    }
+
+    container.innerHTML = packages.map(pkg => {
+        const allAvailable = pkg.available_courses === pkg.total_courses;
+        return `
+            <div class="package-item ${allAvailable ? 'all-available' : ''}" onclick="addPackage('${pkg.id}')">
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium text-sm text-gray-900">${pkg.year} - ${pkg.branch}</div>
+                    <div class="text-xs text-gray-500 truncate">${pkg.courses.map(c => c.code).join(', ')}</div>
+                </div>
+                <div class="flex items-center gap-2 ml-2">
+                    <span class="text-xs px-2 py-0.5 rounded-full ${allAvailable ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">
+                        ${pkg.available_courses}/${pkg.total_courses}
+                    </span>
+                    <i class="fas fa-plus text-gray-400"></i>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function addPackage(pkgId) {
+    const pkg = packages.find(p => p.id === pkgId);
+    if (!pkg) return;
+
+    closeAllDropdowns();
+
+    let added = 0;
+    pkg.courses.forEach(c => {
+        if (c.available && c.course_id && !selectedCourses.has(c.course_id)) {
+            const course = allCourses.find(x => x.id === c.course_id);
+            if (course) {
+                selectedCourses.set(c.course_id, { course, pins: {}, sections: null });
+                added++;
+            }
+        }
+    });
+
+    searchCourses();
+    updateSelectedBadge();
+    clearGenerated();
+    updateButtons();
+
+    if (added > 0) {
+        showToast(`Added ${added} course${added > 1 ? 's' : ''} from package`, 'success');
+        switchTab('selected');
+    } else {
+        showToast('All available courses already selected', 'info');
+    }
+}
+
+// ======================== Pin Sections Modal ========================
+
+async function openPinModal(rawId) {
+    const course = allCourses.find(c => c.id == rawId);
+    if (!course) return;
+    const courseId = course.id;
+
+    currentPinCourseId = courseId;
+    const data = selectedCourses.get(courseId);
+    if (!data) return;
+
+    document.getElementById('pin-modal').classList.remove('hidden');
+    document.getElementById('pin-modal-title').textContent = `Pin Sections - ${data.course.subject} ${data.course.catalog}`;
+    document.getElementById('pin-modal-body').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i></div>';
+
+    if (!data.sections) {
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/advanced-generate/course-sections?course_ids=${courseId}`);
+            if (res?.ok) {
+                const result = await res.json();
+                if (result.courses?.length > 0) {
+                    data.sections = {};
+                    for (const comp of result.courses[0].components) {
+                        data.sections[comp.component] = comp.sections;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('pin-modal-body').innerHTML = '<div class="text-center py-4 text-red-500">Failed to load sections</div>';
+            return;
+        }
+    }
+
+    renderPinOptions(data);
+}
+
+function renderPinOptions(data) {
+    const body = document.getElementById('pin-modal-body');
+
+    if (!data.sections || Object.keys(data.sections).length === 0) {
+        body.innerHTML = '<div class="text-center py-4 text-gray-400">No sections available</div>';
+        return;
+    }
+
+    let html = '';
+    for (const [comp, sections] of Object.entries(data.sections)) {
+        const pinnedNbr = data.pins[comp] || null;
+        html += `
+            <div class="mb-6">
+                <h4 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    ${comp}
+                    <span class="text-xs font-normal text-gray-500">${sections.length} sections</span>
+                </h4>
+                <div class="space-y-2">
+                    <div class="section-option ${pinnedNbr === null ? 'selected' : ''}" onclick="selectPin('${comp}', null)">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <div class="w-5 h-5 rounded-full border-2 ${pinnedNbr === null ? 'bg-amber-500 border-amber-500' : 'border-gray-300'} flex items-center justify-center">
+                                    ${pinnedNbr === null ? '<i class="fas fa-check text-white text-xs"></i>' : ''}
+                                </div>
+                                <span class="text-gray-700">Auto-select best available</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${sections.map(s => `
+                        <div class="section-option ${pinnedNbr === s.class_nbr ? 'selected' : ''}"
+                             onclick="selectPin('${comp}', ${s.class_nbr})">
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-5 h-5 rounded-full border-2 ${pinnedNbr === s.class_nbr ? 'bg-amber-500 border-amber-500' : 'border-gray-300'} flex items-center justify-center">
+                                        ${pinnedNbr === s.class_nbr ? '<i class="fas fa-check text-white text-xs"></i>' : ''}
+                                    </div>
+                                    <span class="font-medium text-gray-900">${s.section}</span>
+                                    <span class="text-xs text-gray-400">#${s.class_nbr}</span>
+                                </div>
+                                <span class="text-xs px-2 py-0.5 rounded-full ${s.available_seats > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                    ${s.available_seats > 0 ? s.available_seats + ' seats' : 'Full'}
+                                </span>
+                            </div>
+                            <div class="ml-7 text-xs text-gray-500">${s.meeting_times || 'TBA'}</div>
+                            ${s.instructor ? `<div class="ml-7 text-xs text-gray-400">${s.instructor}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    body.innerHTML = html;
+}
+
+function selectPin(component, classNbr) {
+    const data = selectedCourses.get(currentPinCourseId);
+    if (!data) return;
+    data.pins[component] = classNbr;
+    renderPinOptions(data);
+}
+
+function savePins() {
+    closePinModal();
+    if (activeTab === 'selected') renderSelectedCourses();
+    clearGenerated();
+    showToast('Sections pinned', 'success');
+}
+
+function closePinModal() {
+    document.getElementById('pin-modal').classList.add('hidden');
+    currentPinCourseId = null;
+}
+
+// ======================== Generate Timetable ========================
+
+async function generateTimetable() {
+    if (selectedCourses.size === 0) return;
+
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
+
+    try {
+        const courseIds = Array.from(selectedCourses.keys());
+        const fixedSections = [];
+
+        for (const [courseId, data] of selectedCourses) {
+            for (const [comp, classNbr] of Object.entries(data.pins)) {
+                if (classNbr !== null) {
+                    fixedSections.push({ course_id: courseId, component: comp, class_nbr: classNbr });
+                }
+            }
+        }
+
+        const prefs = getPreferences();
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/generate`, {
+            method: 'POST',
+            body: JSON.stringify({
+                course_ids: courseIds,
+                max_units: 25,
+                fixed_sections: fixedSections.length > 0 ? fixedSections : undefined,
+                seat_preferences: {
+                    prefer_lab_seats: prefs.lab,
+                    prefer_tut_seats: prefs.tut,
+                    prefer_lec_seats: prefs.lec,
+                }
+            })
+        });
+
+        if (res?.ok) {
+            const result = await res.json();
+            generated = result;
+
+            if (result.success || result.partial) {
+                showCalendar();
+                renderCalendar(result.meetings);
+                renderScheduleDetails(result.meetings);
+                document.getElementById('total-units').textContent = result.total_units || 0;
+
+                // Show conflicts panel if partial success
+                if (result.partial && result.conflicts?.length > 0) {
+                    showConflictsPanel(result.conflicts, 'warning');
+                    showToast('Partial timetable generated - some courses could not fit', 'warning');
+                } else {
+                    hideConflictsPanel();
+                    showToast('Timetable generated successfully!', 'success');
+                }
+            } else {
+                // Show conflicts panel for failed generation
+                if (result.conflicts?.length > 0) {
+                    showConflictsPanel(result.conflicts, 'error');
+                }
+                showToast(result.message || 'Could not generate - conflicts detected', 'error');
+            }
+        } else {
+            const err = await res.json();
+            showToast(err.detail || 'Generation failed', 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error generating timetable', 'error');
+    } finally {
+        btn.disabled = selectedCourses.size === 0;
+        btn.innerHTML = '<i class="fas fa-magic mr-2"></i>Generate';
+        updateButtons();
+    }
+}
+
+function clearGenerated() {
+    generated = null;
+    hideCalendar();
+    hideConflictsPanel();
+    document.getElementById('schedule-details-card').classList.add('hidden');
+    document.getElementById('schedule-details').innerHTML = '';
+    updateButtons();
+}
+
+function showCalendar() {
+    document.getElementById('calendar-empty').classList.add('hidden');
+    document.getElementById('calendar-grid').classList.remove('hidden');
+    document.getElementById('schedule-details-card').classList.remove('hidden');
+}
+
+function hideCalendar() {
+    document.getElementById('calendar-empty').classList.remove('hidden');
+    document.getElementById('calendar-grid').classList.add('hidden');
+    document.querySelectorAll('.course-block').forEach(el => el.remove());
+}
+
+function renderCalendar(meetings) {
+    document.querySelectorAll('.course-block').forEach(el => el.remove());
+    if (!meetings?.length) return;
+
+    const colorMap = new Map();
+    let colorIdx = 0;
+
+    meetings.forEach(m => {
+        if (!m.day || !m.mtg_start || !m.mtg_end) return;
+
+        const [sh, sm] = m.mtg_start.split(':').map(Number);
+        const [eh, em] = m.mtg_end.split(':').map(Number);
+        const cell = document.querySelector(`.calendar-cell[data-day="${m.day}"][data-hour="${sh}"]`);
+        if (!cell) return;
+
+        if (!colorMap.has(m.course_id)) colorMap.set(m.course_id, colorIdx++ % 7);
+
+        const duration = (eh - sh) * 60 + (em - sm);
+        const height = (duration / 60) * 40;
+        const top = (sm / 60) * 40;
+
+        const block = document.createElement('div');
+        block.className = `course-block course-color-${colorMap.get(m.course_id)}`;
+        block.style.cssText = `top:${top}px;height:${height}px`;
+        block.innerHTML = `<div class="font-semibold truncate">${m.subject} ${m.catalog}</div><div class="truncate opacity-80">${m.component}</div>`;
+        block.title = `${m.subject} ${m.catalog}\n${m.component} ${m.section}\n${formatTime(m.mtg_start)} - ${formatTime(m.mtg_end)}\n${m.room || 'TBA'}`;
+        block.onclick = () => openSwapModal(m.course_id, m.component, m.class_nbr);
+        cell.appendChild(block);
+    });
+}
+
+// ======================== Schedule Details ========================
+
+function renderScheduleDetails(meetings) {
+    const container = document.getElementById('schedule-details');
+
+    const byCourse = new Map();
+    meetings.forEach(m => {
+        if (!byCourse.has(m.course_id)) {
+            byCourse.set(m.course_id, {
+                subject: m.subject,
+                catalog: m.catalog,
+                title: m.title,
+                course_id: m.course_id,
+                components: new Map()
+            });
+        }
+        const course = byCourse.get(m.course_id);
+        if (!course.components.has(m.component)) {
+            course.components.set(m.component, {
+                class_nbr: m.class_nbr,
+                section: m.section,
+                times: [],
+                seats: m.available_seats,
+                instructor: m.instructor
+            });
+        }
+        const comp = course.components.get(m.component);
+        comp.times.push(`${m.day?.slice(0,3)} ${formatTime(m.mtg_start)}`);
+    });
+
+    let html = '';
+    for (const [courseId, course] of byCourse) {
+        html += `
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="p-3 bg-gray-50 border-b border-gray-200">
+                    <span class="font-semibold text-gray-900">${course.subject} ${course.catalog}</span>
+                    <span class="text-sm text-gray-500 ml-2">${course.title}</span>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    ${Array.from(course.components.entries()).map(([comp, data]) => `
+                        <div class="p-3 flex items-center justify-between hover:bg-blue-50 cursor-pointer transition-colors group"
+                             onclick="openSwapModal('${courseId}', '${comp}', ${data.class_nbr})">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-gray-700">${comp}</span>
+                                    <span class="text-sm text-gray-500">${data.section}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-0.5">${data.times.join(' · ')}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs px-2 py-0.5 rounded-full ${data.seats > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                    ${data.seats > 0 ? data.seats + ' seats' : 'Full'}
+                                </span>
+                                <span class="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <i class="fas fa-exchange-alt mr-1"></i>Swap
+                                </span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+// ======================== Swap Section Modal - IMPROVED ========================
+
+async function openSwapModal(courseId, component, currentClassNbr) {
+    if (!generated) return;
+
+    currentSwapData = { courseId, component, currentClassNbr };
+
+    const course = selectedCourses.get(courseId)?.course || allCourses.find(c => c.id === courseId);
+    document.getElementById('swap-modal').classList.remove('hidden');
+    document.getElementById('swap-modal-title').textContent = `${course?.subject} ${course?.catalog} - ${component}`;
+    document.getElementById('swap-modal-subtitle').textContent = 'Select an alternative section below';
+    document.getElementById('swap-modal-body').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i><p class="text-sm text-gray-500 mt-2">Loading available sections...</p></div>';
+
+    try {
+        const currentSectionIds = generated.meetings
+            .filter(m => m.course_id !== courseId)
+            .map(m => m.section_id)
+            .filter(Boolean);
+
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/compatible-sections-with-conflicts`, {
+            method: 'POST',
+            body: JSON.stringify({
+                course_id: courseId,
+                exclude_section_ids: currentSectionIds
+            })
+        });
+
+        if (res?.ok) {
+            const data = await res.json();
+            renderSwapOptions(data, component, currentClassNbr);
+        } else {
+            document.getElementById('swap-modal-body').innerHTML = '<div class="text-center py-8 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><p>Failed to load sections</p></div>';
+        }
+    } catch (e) {
+        console.error(e);
+        document.getElementById('swap-modal-body').innerHTML = '<div class="text-center py-8 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><p>Error loading sections</p></div>';
+    }
+}
+
+function renderSwapOptions(data, component, currentClassNbr) {
+    const body = document.getElementById('swap-modal-body');
+
+    const sections = data.components?.[component] || [];
+    if (sections.length === 0) {
+        body.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-3xl mb-2"></i><p>No alternative sections available</p></div>';
+        return;
+    }
+
+    // Group sections by status (allow swapping to full sections)
+    const currentSection = sections.find(s => s.class_nbr === currentClassNbr);
+    const availableSections = sections.filter(s => s.class_nbr !== currentClassNbr && s.is_compatible);
+    const conflictSections = sections.filter(s => s.class_nbr !== currentClassNbr && !s.is_compatible);
+
+    let html = '';
+
+    // Current Section
+    if (currentSection) {
+        html += `
+            <div class="swap-section-group">
+                <div class="swap-section-group-header">
+                    <i class="fas fa-check-circle text-green-500"></i>
+                    <span class="swap-section-group-title">Current Section</span>
+                </div>
+                ${renderSwapSectionCard(currentSection, true, false, false)}
+            </div>
+        `;
+    }
+
+    // Available Sections
+    if (availableSections.length > 0) {
+        html += `
+            <div class="swap-section-group">
+                <div class="swap-section-group-header">
+                    <i class="fas fa-door-open text-blue-500"></i>
+                    <span class="swap-section-group-title">Available Sections</span>
+                    <span class="swap-section-group-count">${availableSections.length}</span>
+                </div>
+                ${availableSections.map(s => renderSwapSectionCard(s, false, false, false)).join('')}
+            </div>
+        `;
+    }
+
+    // Conflicting Sections
+    if (conflictSections.length > 0) {
+        html += `
+            <div class="swap-section-group">
+                <div class="swap-section-group-header">
+                    <i class="fas fa-exclamation-triangle text-red-400"></i>
+                    <span class="swap-section-group-title">Time Conflicts</span>
+                    <span class="swap-section-group-count">${conflictSections.length}</span>
+                </div>
+                ${conflictSections.map(s => renderSwapSectionCard(s, false, false, true)).join('')}
+            </div>
+        `;
+    }
+
+    body.innerHTML = html;
+}
+
+function renderSwapSectionCard(section, isCurrent, _unused, hasConflict) {
+    // Allow swapping to any compatible section regardless of capacity
+    const isDisabled = isCurrent || hasConflict;
+    const cardClass = isCurrent ? 'current' : (hasConflict ? 'conflict' : 'available');
+
+    return `
+        <div class="swap-section-card ${cardClass} ${isDisabled ? 'disabled' : ''}"
+             onclick="${!isDisabled ? `selectSwap(${section.class_nbr})` : ''}">
+            <div class="swap-section-header">
+                <div class="swap-section-info">
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-gray-900">${section.section}</span>
+                        <span class="text-xs text-gray-400">#${section.class_nbr}</span>
+                    </div>
+                    ${section.instructor ? `<div class="text-xs text-gray-500 mt-0.5">${section.instructor}</div>` : ''}
+                </div>
+                <div class="swap-section-badges">
+                    ${isCurrent ? '<span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Current</span>' : ''}
+                    ${hasConflict ? '<span class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full">Clash</span>' : ''}
+                    <span class="text-xs px-2 py-0.5 rounded-full ${section.available_seats > 0 ? 'bg-gray-100 text-gray-700' : 'bg-red-100 text-red-700'}">
+                        ${section.available_seats > 0 ? section.available_seats + ' seats' : 'Full'}
+                    </span>
+                </div>
+            </div>
+            <div class="swap-section-details">
+                <div class="swap-section-time">
+                    <i class="fas fa-clock text-gray-400"></i>
+                    <span>${section.meeting_times || 'TBA'}</span>
+                </div>
+                ${hasConflict && section.conflict_with_course ? `
+                    <div class="swap-conflict-reason">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Conflicts with ${section.conflict_with_course}${section.conflict_reason ? ` (${section.conflict_reason})` : ''}</span>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+async function selectSwap(newClassNbr) {
+    if (!currentSwapData || !generated) return;
+
+    const { courseId, component, currentClassNbr } = currentSwapData;
+    if (newClassNbr === currentClassNbr) {
+        closeSwapModal();
+        return;
+    }
+
+    // Show loading state in modal
+    document.getElementById('swap-modal-body').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i><p class="text-sm text-gray-500 mt-2">Swapping section...</p></div>';
+
+    try {
+        const existingPins = [];
+        for (const [cId, data] of selectedCourses) {
+            for (const [comp, classNbr] of Object.entries(data.pins)) {
+                if (classNbr !== null) {
+                    existingPins.push({ course_id: cId, component: comp, class_nbr: classNbr });
+                }
+            }
+        }
+
+        existingPins.push({ course_id: courseId, component, class_nbr: newClassNbr });
+
+        for (const m of generated.meetings) {
+            if (m.course_id === courseId && m.component === component) continue;
+            if (!existingPins.some(p => p.course_id === m.course_id && p.component === m.component)) {
+                existingPins.push({ course_id: m.course_id, component: m.component, class_nbr: m.class_nbr });
+            }
+        }
+
+        const prefs = getPreferences();
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/generate`, {
+            method: 'POST',
+            body: JSON.stringify({
+                course_ids: Array.from(selectedCourses.keys()),
+                max_units: 25,
+                fixed_sections: existingPins,
+                seat_preferences: {
+                    prefer_lab_seats: prefs.lab,
+                    prefer_tut_seats: prefs.tut,
+                    prefer_lec_seats: prefs.lec,
+                }
+            })
+        });
+
+        if (res?.ok) {
+            const result = await res.json();
+            if (result.success || result.partial) {
+                generated = result;
+                renderCalendar(result.meetings);
+                renderScheduleDetails(result.meetings);
+                document.getElementById('total-units').textContent = result.total_units || 0;
+                showToast('Section swapped successfully!', 'success');
+            } else {
+                showToast('Swap failed - conflict detected', 'error');
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error swapping section', 'error');
+    }
+
+    closeSwapModal();
+}
+
+function closeSwapModal() {
+    document.getElementById('swap-modal').classList.add('hidden');
+    currentSwapData = null;
+}
+
+// ======================== Commit ========================
+
+async function confirmAndCommit() {
+    document.getElementById('confirm-modal').classList.remove('hidden');
+    
+    // Fetch prerequisites
+    const container = document.getElementById('prereq-list');
+    container.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Checking prerequisites...</div>';
+    
+    try {
+        const courseIds = Array.from(selectedCourses.keys());
+        const res = await api(`/api/sessions/${sessionId}/courses/prerequisites`, {
+            method: 'POST',
+            body: JSON.stringify({ course_ids: courseIds })
+        });
+        
+        if (res?.ok) {
+            const courses = await res.json();
+            renderPrereqs(courses);
+        } else {
+            container.innerHTML = '<div class="text-red-500 text-center text-xs py-2">Failed to load prerequisites. Please verify manually.</div>';
+        }
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div class="text-red-500 text-center text-xs py-2">Error loading prerequisites. Please verify manually.</div>';
+    }
+}
+
+function renderPrereqs(courses) {
+    const container = document.getElementById('prereq-list');
+    
+    // Filter courses that actually have prerequisites
+    const coursesWithPrereqs = courses.filter(c => c.prerequisites && c.prerequisites.length > 0);
+    
+    if (coursesWithPrereqs.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle text-green-500 text-xl mb-2"></i>
+                <p class="text-gray-600 font-medium">No prerequisites required</p>
+                <p class="text-xs text-gray-400">None of the selected courses have prerequisite constraints.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+
+    coursesWithPrereqs.forEach(c => {
+        html += `
+            <div class="bg-white border border-gray-200 rounded-lg p-3">
+                <div class="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">${c.subject} ${c.catalog}</span>
+                    <span>${c.title}</span>
+                </div>
+                <div class="pl-2 space-y-1.5 border-l-2 border-gray-100 ml-1">
+        `;
+        
+        // Sort by order
+        const sortedPrereqs = c.prerequisites.sort((a, b) => a.prereq_order - b.prereq_order);
+        
+        sortedPrereqs.forEach((p, idx) => {
+            const isFirst = idx === 0;
+            // For display, if it's not the first, we show the TYPE of the PREVIOUS one as the connector? 
+            // Or just show the type of the current one as "Logic required with next?"
+            // Based on excel: P1 AND P2. 
+            // P1 has type AND. P2 has type ... 
+            // Let's just show the type associated with the record.
+            
+            const typeBadge = p.prereq_type === 'OR' 
+                ? '<span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">OR</span>' 
+                : '<span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">AND</span>';
+            
+            // Only show connector if not last, OR if it relates to previous?
+            // The parser logic puts the operator found AFTER the column into the record.
+            // So P1 has "AND" means "P1 AND ...".
+            // So we should show P1, then (if not last) the operator.
+            
+            const connector = (idx < sortedPrereqs.length - 1) ? typeBadge : '';
+            
+            const coreqLabel = p.is_corequisite 
+                ? '<span class="text-[10px] text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded ml-2" title="Corequisite - must be taken together"><i class="fas fa-link mr-1"></i>Coreq</span>' 
+                : '';
+                
+            html += `
+                <div class="flex items-center flex-wrap gap-2 text-sm">
+                     <i class="fas fa-angle-right text-gray-300 text-xs"></i>
+                     <span class="font-medium text-gray-700">${p.prereq_course.subject} ${p.prereq_course.catalog}</span>
+                     <span class="text-gray-500 text-xs truncate max-w-[200px]">${p.prereq_course.title}</span>
+                     ${coreqLabel}
+                     <div class="flex-grow"></div>
+                     ${connector}
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+}
+
+async function commitTimetable() {
+    closeConfirmModal();
+    if (!generated) return;
+
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+    try {
+        const sectionIds = [...new Set(generated.meetings.map(m => m.section_id).filter(Boolean))];
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/commit`, {
+            method: 'POST',
+            body: JSON.stringify({ section_ids: sectionIds })
+        });
+
+        if (res?.ok) {
+            const result = await res.json();
+            if (result.success) {
+                showToast('Timetable saved successfully! Redirecting...', 'success');
+                const targetUrl = `/session/${sessionId}/student/${studentId}/timetable`;
+                btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+                setTimeout(function() {
+                    document.location.href = targetUrl;
+                }, 2000);
+                return;
+            } else {
+                showToast(result.message || 'Save failed', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check mr-2"></i>Save';
+            }
+        } else {
+            const err = await res.json();
+            showToast(err.detail || 'Save failed', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check mr-2"></i>Save';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error saving timetable', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check mr-2"></i>Save';
+    }
+}
+
+async function uncommitTimetable() {
+    if (!confirm('Uncommit existing timetable? This will release your reserved seats.')) return;
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/uncommit`, { method: 'POST' });
+        if (res?.ok) {
+            document.getElementById('existing-warning').classList.add('hidden');
+            updateButtons();
+            showToast('Timetable uncommitted', 'success');
+        }
+    } catch (e) {
+        showToast('Error uncommitting', 'error');
+    }
+}
+
+// ======================== Saved Drafts ========================
+
+let savedDrafts = [];
+
+async function loadSavedDrafts() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/saved-drafts`);
+        if (res?.ok) {
+            const data = await res.json();
+            savedDrafts = data.drafts || [];
+            renderDraftsList();
+        }
+    } catch (e) {
+        console.error('Error loading drafts:', e);
+    }
+}
+
+function renderDraftsList() {
+    const container = document.getElementById('drafts-list');
+    
+    if (savedDrafts.length === 0) {
+        container.innerHTML = `
+            <div class="p-3 text-center text-xs text-gray-400">
+                <i class="fas fa-bookmark text-gray-300 text-lg mb-1"></i>
+                <p>No saved drafts yet</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = savedDrafts.map(draft => {
+        const courseCount = draft.selected_course_ids?.length || 0;
+        const createdAt = new Date(draft.created_at).toLocaleDateString('en-US', { 
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+        });
+        return `
+            <div class="p-2 hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0 cursor-pointer" onclick="loadDraft('${draft.id}')">
+                        <div class="font-medium text-sm text-gray-900 truncate">${escapeHtml(draft.name)}</div>
+                        <div class="text-xs text-gray-500">
+                            ${courseCount} course${courseCount !== 1 ? 's' : ''} · ${createdAt}
+                        </div>
+                        ${draft.notes ? `<div class="text-xs text-gray-400 truncate mt-0.5">${escapeHtml(draft.notes)}</div>` : ''}
+                    </div>
+                    <button onclick="event.stopPropagation(); deleteDraft('${draft.id}')"
+                        class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-2"
+                        title="Delete draft">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleDraftsMenu() {
+    const menu = document.getElementById('drafts-menu');
+    const settingsMenu = document.getElementById('settings-menu');
+    const quickAddMenu = document.getElementById('quick-add-menu');
+    settingsMenu.classList.add('hidden');
+    quickAddMenu.classList.add('hidden');
+    menu.classList.toggle('hidden');
+    
+    if (!menu.classList.contains('hidden')) {
+        loadSavedDrafts();
+    }
+}
+
+function openSaveDraftModal() {
+    closeAllDropdowns();
+    document.getElementById('draft-name').value = '';
+    document.getElementById('draft-notes').value = '';
+    document.getElementById('draft-course-count').textContent = selectedCourses.size;
+    document.getElementById('save-draft-modal').classList.remove('hidden');
+    document.getElementById('draft-name').focus();
+}
+
+function closeSaveDraftModal() {
+    document.getElementById('save-draft-modal').classList.add('hidden');
+}
+
+async function saveDraft() {
+    const name = document.getElementById('draft-name').value.trim();
+    const notes = document.getElementById('draft-notes').value.trim();
+    
+    if (!name) {
+        showToast('Please enter a name for the draft', 'error');
+        return;
+    }
+    
+    if (selectedCourses.size === 0) {
+        showToast('Please select at least one course', 'error');
+        return;
+    }
+
+    // Build pinned sections data
+    const pinnedSections = {};
+    for (const [courseId, data] of selectedCourses) {
+        if (Object.keys(data.pins).length > 0) {
+            pinnedSections[courseId] = data.pins;
+        }
+    }
+
+    const prefs = getPreferences();
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/saved-drafts`, {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                notes: notes || null,
+                selected_course_ids: Array.from(selectedCourses.keys()),
+                pinned_sections: pinnedSections,
+                seat_preferences: {
+                    prefer_lab_seats: prefs.lab,
+                    prefer_tut_seats: prefs.tut,
+                    prefer_lec_seats: prefs.lec
+                }
+            })
+        });
+
+        if (res?.ok) {
+            closeSaveDraftModal();
+            showToast('Draft saved successfully!', 'success');
+            loadSavedDrafts();
+        } else {
+            const err = await res.json();
+            showToast(err.detail || 'Failed to save draft', 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error saving draft', 'error');
+    }
+}
+
+async function loadDraft(draftId) {
+    closeAllDropdowns();
+    
+    const draft = savedDrafts.find(d => d.id === draftId);
+    if (!draft) return;
+
+    // Clear current selection
+    selectedCourses.clear();
+
+    // Load courses from draft
+    let loadedCount = 0;
+    for (const courseIdStr of draft.selected_course_ids) {
+        const course = allCourses.find(c => c.id === courseIdStr || c.id === parseInt(courseIdStr));
+        if (course) {
+            const pins = draft.pinned_sections?.[courseIdStr] || draft.pinned_sections?.[course.id] || {};
+            selectedCourses.set(course.id, { course, pins, sections: null });
+            loadedCount++;
+        }
+    }
+
+    // Load seat preferences
+    if (draft.seat_preferences) {
+        if (draft.seat_preferences.prefer_lab_seats !== undefined) {
+            document.getElementById('pref-lab').checked = draft.seat_preferences.prefer_lab_seats;
+        }
+        if (draft.seat_preferences.prefer_tut_seats !== undefined) {
+            document.getElementById('pref-tut').checked = draft.seat_preferences.prefer_tut_seats;
+        }
+        if (draft.seat_preferences.prefer_lec_seats !== undefined) {
+            document.getElementById('pref-lec').checked = draft.seat_preferences.prefer_lec_seats;
+        }
+        localStorage.setItem('tt_prefs', JSON.stringify(getPreferences()));
+    }
+
+    // Update UI
+    searchCourses();
+    updateSelectedBadge();
+    renderSelectedCourses();
+    clearGenerated();
+    updateButtons();
+    switchTab('selected');
+
+    showToast(`Loaded "${draft.name}" (${loadedCount} courses)`, 'success');
+}
+
+async function deleteDraft(draftId) {
+    if (!confirm('Delete this saved draft?')) return;
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/saved-drafts/${draftId}`, {
+            method: 'DELETE'
+        });
+
+        if (res?.ok) {
+            showToast('Draft deleted', 'success');
+            loadSavedDrafts();
+        } else {
+            showToast('Failed to delete draft', 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error deleting draft', 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ======================== Utilities ========================
+
+function toggleQuickAdd() {
+    const menu = document.getElementById('quick-add-menu');
+    const settingsMenu = document.getElementById('settings-menu');
+    const draftsMenu = document.getElementById('drafts-menu');
+    settingsMenu.classList.add('hidden');
+    draftsMenu.classList.add('hidden');
+    menu.classList.toggle('hidden');
+}
+
+function toggleSettings() {
+    const menu = document.getElementById('settings-menu');
+    const quickAddMenu = document.getElementById('quick-add-menu');
+    const draftsMenu = document.getElementById('drafts-menu');
+    quickAddMenu.classList.add('hidden');
+    draftsMenu.classList.add('hidden');
+    menu.classList.toggle('hidden');
+}
+
+function closeAllDropdowns() {
+    document.getElementById('quick-add-menu').classList.add('hidden');
+    document.getElementById('settings-menu').classList.add('hidden');
+    document.getElementById('drafts-menu').classList.add('hidden');
+}
+
+function formatTime(t) {
+    if (!t) return 'TBA';
+    const [h, m] = t.split(':');
+    const hr = parseInt(h);
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    const h12 = hr % 12 || 12;
+    return `${h12}:${m} ${ampm}`;
+}
+
+function showToast(msg, type = 'info', duration = 4000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Add icon based on type
+    let icon = 'fa-info-circle';
+    if (type === 'success') icon = 'fa-check-circle';
+    else if (type === 'error') icon = 'fa-exclamation-circle';
+    else if (type === 'warning') icon = 'fa-exclamation-triangle';
+    
+    toast.innerHTML = `<i class="fas ${icon} mr-2"></i>${msg}`;
+    container.appendChild(toast);
+    
+    // Success toasts dismiss faster
+    const actualDuration = type === 'success' ? 3000 : duration;
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, actualDuration);
+}
+
+function getPreferences() {
+    return {
+        lab: document.getElementById('pref-lab').checked,
+        tut: document.getElementById('pref-tut').checked,
+        lec: document.getElementById('pref-lec').checked
+    };
+}
+
+function loadPreferences() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('tt_prefs') || '{}');
+        if (saved.lab !== undefined) document.getElementById('pref-lab').checked = saved.lab;
+        if (saved.tut !== undefined) document.getElementById('pref-tut').checked = saved.tut;
+        if (saved.lec !== undefined) document.getElementById('pref-lec').checked = saved.lec;
+    } catch (e) {}
+
+    document.querySelectorAll('#settings-menu input').forEach(inp => {
+        inp.addEventListener('change', () => {
+            localStorage.setItem('tt_prefs', JSON.stringify(getPreferences()));
+        });
+    });
+}
+
+// ========== Conflicts Panel Functions ==========
+
+function showConflictsPanel(conflicts, type = 'error') {
+    const panel = document.getElementById('conflicts-panel');
+    const list = document.getElementById('conflicts-list');
+
+    panel.classList.remove('hidden');
+
+    // Update panel styling based on type
+    if (type === 'warning') {
+        panel.className = 'mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl';
+        panel.querySelector('h3').className = 'font-medium text-amber-800 mb-3';
+        panel.querySelector('p').className = 'text-sm text-amber-700 mb-3';
+    } else {
+        panel.className = 'mb-4 p-4 bg-red-50 border border-red-200 rounded-xl';
+        panel.querySelector('h3').className = 'font-medium text-red-800 mb-3';
+        panel.querySelector('p').className = 'text-sm text-red-700 mb-3';
+    }
+
+    list.innerHTML = conflicts.map(c => renderConflictCard(c, type)).join('');
+}
+
+function hideConflictsPanel() {
+    document.getElementById('conflicts-panel').classList.add('hidden');
+}
+
+function renderConflictCard(conflict, type = 'error') {
+    const bgColor = type === 'error' ? 'bg-red-100/50' : 'bg-amber-100/50';
+    const borderColor = type === 'error' ? 'border-red-300' : 'border-amber-300';
+    const textColor = type === 'error' ? 'text-red' : 'text-amber';
+
+    // Get course info from details
+    const courseInfo = conflict.details?.course_info || {};
+    const courseLabel = courseInfo.subject && courseInfo.catalog
+        ? `${courseInfo.subject} ${courseInfo.catalog}`
+        : 'Unknown Course';
+    const courseTitle = courseInfo.title || '';
+
+    let detailsHtml = '';
+
+    // Render time clashes
+    if (conflict.time_clashes && conflict.time_clashes.length > 0) {
+        detailsHtml += `
+            <div class="mt-2 space-y-2">
+                <div class="text-xs font-medium ${textColor}-700 uppercase tracking-wide">
+                    <i class="fas fa-clock mr-1"></i>Time Clashes
+                </div>
+                ${conflict.time_clashes.map(tc => renderTimeClash(tc, type)).join('')}
+            </div>
+        `;
+    }
+
+    // Render exam clashes
+    if (conflict.exam_clashes && conflict.exam_clashes.length > 0) {
+        detailsHtml += `
+            <div class="mt-2 space-y-2">
+                <div class="text-xs font-medium ${textColor}-700 uppercase tracking-wide">
+                    <i class="fas fa-file-alt mr-1"></i>Exam Clashes
+                </div>
+                ${conflict.exam_clashes.map(ec => renderExamClash(ec, type)).join('')}
+            </div>
+        `;
+    }
+
+    // Render unit conflict
+    if (conflict.details?.unit_conflict) {
+        const uc = conflict.details.unit_conflict;
+        detailsHtml += `
+            <div class="mt-2 p-2 bg-white/50 rounded border ${borderColor}">
+                <div class="text-xs font-medium ${textColor}-700 uppercase tracking-wide mb-1">
+                    <i class="fas fa-calculator mr-1"></i>Unit Limit Exceeded
+                </div>
+                <div class="text-sm ${textColor}-800">
+                    Current: <span class="font-semibold">${uc.current_units?.toFixed(1) || 0}</span> units +
+                    Course: <span class="font-semibold">${uc.course_units?.toFixed(1) || 0}</span> units =
+                    <span class="font-semibold">${((uc.current_units || 0) + (uc.course_units || 0)).toFixed(1)}</span> units
+                    <span class="${textColor}-600">(max: ${uc.max_units?.toFixed(1) || 25} units)</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // If no detailed clashes, just show the message
+    if (!detailsHtml && conflict.message) {
+        detailsHtml = `<div class="text-sm ${textColor}-700 mt-1">${conflict.details?.reason || conflict.message}</div>`;
+    }
+
+    return `
+        <div class="p-3 ${bgColor} rounded-lg border ${borderColor}">
+            <div class="flex items-start gap-2">
+                <i class="fas fa-times-circle ${textColor}-600 mt-0.5"></i>
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium ${textColor}-800">
+                        ${courseLabel}
+                        ${courseTitle ? `<span class="font-normal ${textColor}-600">- ${courseTitle}</span>` : ''}
+                    </div>
+                    ${detailsHtml}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderTimeClash(tc, type = 'error') {
+    const borderColor = type === 'error' ? 'border-red-300' : 'border-amber-300';
+    const textColor = type === 'error' ? 'text-red' : 'text-amber';
+
+    const course1 = tc.course1 || {};
+    const course2 = tc.course2 || {};
+    const course1Label = `${course1.subject || ''} ${course1.catalog || ''}`.trim() || 'Course 1';
+    const course2Label = `${course2.subject || ''} ${course2.catalog || ''}`.trim() || 'Course 2';
+
+    return `
+        <div class="p-2 bg-white/50 rounded border ${borderColor} text-sm">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                    ${tc.day || 'Unknown Day'}
+                </span>
+                ${tc.overlap_time ? `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>Overlap: ${tc.overlap_time}
+                    </span>
+                ` : ''}
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="${textColor}-700">
+                    <div class="font-medium">${course1Label}</div>
+                    <div class="text-gray-600">${tc.course1_time || 'Unknown'}</div>
+                    ${course1.component ? `<div class="text-gray-500">${course1.component}${course1.section ? ` ${course1.section}` : ''}</div>` : ''}
+                </div>
+                <div class="${textColor}-700">
+                    <div class="font-medium">${course2Label}</div>
+                    <div class="text-gray-600">${tc.course2_time || 'Unknown'}</div>
+                    ${course2.component ? `<div class="text-gray-500">${course2.component}${course2.section ? ` ${course2.section}` : ''}</div>` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderExamClash(ec, type = 'error') {
+    const borderColor = type === 'error' ? 'border-red-300' : 'border-amber-300';
+    const textColor = type === 'error' ? 'text-red' : 'text-amber';
+
+    const course1 = ec.course1 || {};
+    const course2 = ec.course2 || {};
+    const course1Label = `${course1.subject || ''} ${course1.catalog || ''}`.trim() || 'Course 1';
+    const course2Label = `${course2.subject || ''} ${course2.catalog || ''}`.trim() || 'Course 2';
+
+    // Format date
+    let dateDisplay = ec.exam_date || 'Unknown Date';
+    if (ec.exam_date) {
+        try {
+            const d = new Date(ec.exam_date);
+            dateDisplay = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        } catch (e) {}
+    }
+
+    return `
+        <div class="p-2 bg-white/50 rounded border ${borderColor} text-sm">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                    <i class="fas fa-calendar-alt mr-1"></i>${dateDisplay}
+                </span>
+                ${ec.overlap_time ? `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>Overlap: ${ec.overlap_time}
+                    </span>
+                ` : ''}
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="${textColor}-700">
+                    <div class="font-medium">${course1Label}</div>
+                    <div class="text-gray-600">Exam: ${ec.course1_exam_time || 'Unknown'}</div>
+                </div>
+                <div class="${textColor}-700">
+                    <div class="font-medium">${course2Label}</div>
+                    <div class="text-gray-600">Exam: ${ec.course2_exam_time || 'Unknown'}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Event listeners
+document.addEventListener('click', e => {
+    // Don't close if clicking inside the quick-add container, settings container, or drafts container
+    const inQuickAdd = e.target.closest('#quick-add-container');
+    const inSettings = e.target.closest('#settings-menu') || e.target.closest('button[onclick="toggleSettings()"]');
+    const inDrafts = e.target.closest('#drafts-menu') || e.target.closest('#drafts-btn');
+
+    if (!inQuickAdd && !inSettings && !inDrafts) {
+        closeAllDropdowns();
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        closeSwapModal();
+        closePinModal();
+        closeConfirmModal();
+        closeSaveDraftModal();
+        closeAllDropdowns();
+    }
+});
+
+// Focus search on page load
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('search-input').focus();
+});
+
+['swap-modal', 'pin-modal', 'confirm-modal', 'save-draft-modal', 'assign-tt-modal', 'tt-preview-modal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('click', e => {
+            if (e.target.id === id) {
+                if (id === 'swap-modal') closeSwapModal();
+                else if (id === 'pin-modal') closePinModal();
+                else if (id === 'confirm-modal') closeConfirmModal();
+                else if (id === 'save-draft-modal') closeSaveDraftModal();
+                else if (id === 'assign-tt-modal') closeAssignTimetableModal();
+                else if (id === 'tt-preview-modal') closeTimetablePreview();
+            }
+        });
+    }
+});
+
+// =====================================
+// BUFFER TIMETABLE ASSIGNMENT FUNCTIONS
+// =====================================
+
+let selectedBufferTimetableId = null;
+let studentBranch = null;
+
+// Extract branch from campus ID (positions 4-6, e.g., "2025A7CS0001P" -> "A7")
+function extractBranchFromCampusId(campusId) {
+    if (campusId && campusId.length >= 6) {
+        return campusId.substring(4, 6);
+    }
+    return null;
+}
+
+async function openAssignTimetableModal() {
+    const modal = document.getElementById('assign-tt-modal');
+    modal.classList.remove('hidden');
+
+    // Show student info
+    const studentName = document.querySelector('[data-student-name]')?.dataset?.studentName ||
+                        document.querySelector('.text-xl.font-semibold')?.textContent || 'Student';
+    const campusId = '{{ campus_id | default("") }}';
+
+    document.getElementById('assign-student-name').textContent = studentName;
+    studentBranch = extractBranchFromCampusId(campusId);
+    document.getElementById('assign-student-branch').textContent = studentBranch || 'Unknown';
+
+    // Load available buffer timetables
+    await loadBufferTimetables();
+}
+
+function closeAssignTimetableModal() {
+    document.getElementById('assign-tt-modal').classList.add('hidden');
+    selectedBufferTimetableId = null;
+}
+
+async function loadBufferTimetables() {
+    const listEl = document.getElementById('assign-tt-list');
+    const emptyEl = document.getElementById('assign-tt-empty');
+
+    listEl.innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-2"></i>
+            <p class="text-sm text-gray-500">Loading available timetables...</p>
+        </div>
+    `;
+    emptyEl.classList.add('hidden');
+
+    try {
+        let url = `/api/sessions/${sessionId}/buffer-timetables`;
+        if (studentBranch) {
+            url += `?branch=${studentBranch}`;
+        }
+
+        const res = await api(url);
+        if (!res.ok) throw new Error('Failed to load buffer timetables');
+
+        const data = await res.json();
+
+        if (!data.buffer_timetables || data.buffer_timetables.length === 0) {
+            listEl.innerHTML = '';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+
+        listEl.innerHTML = data.buffer_timetables.map(tt => `
+            <div class="border rounded-lg p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-colors cursor-pointer"
+                 onclick="selectBufferTimetable('${tt.id}')">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <h4 class="font-medium text-gray-900">
+                            Timetable #${tt.timetable_id}
+                            ${tt.is_variant ? '<span class="ml-2 text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">Variant</span>' : ''}
+                        </h4>
+                        <p class="text-xs text-gray-500 mt-0.5">${tt.plan}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-medium ${tt.remaining_capacity > 0 ? 'text-green-600' : 'text-red-600'}">
+                            ${tt.remaining_capacity} slots left
+                        </p>
+                        <p class="text-xs text-gray-500">${tt.assigned_count}/${tt.batch_size} assigned</p>
+                    </div>
+                </div>
+
+                <!-- Capacity Bar -->
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
+                    <div class="h-2 rounded-full transition-all ${
+                        tt.fill_percentage >= 90 ? 'bg-red-500' :
+                        tt.fill_percentage >= 70 ? 'bg-yellow-500' : 'bg-green-500'
+                    }" style="width: ${Math.min(tt.fill_percentage, 100)}%"></div>
+                </div>
+
+                <!-- Courses -->
+                <div class="flex flex-wrap gap-1">
+                    ${tt.courses.slice(0, 6).map(c => `
+                        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">${c}</span>
+                    `).join('')}
+                    ${tt.courses.length > 6 ? `<span class="text-xs text-gray-400">+${tt.courses.length - 6} more</span>` : ''}
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-2 mt-3">
+                    <button onclick="event.stopPropagation(); previewBufferTimetable('${tt.id}')"
+                        class="flex-1 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+                        <i class="fas fa-eye mr-1"></i>Preview
+                    </button>
+                    <button onclick="event.stopPropagation(); assignBufferTimetable('${tt.id}')"
+                        class="flex-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors ${tt.remaining_capacity <= 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                        ${tt.remaining_capacity <= 0 ? 'disabled' : ''}>
+                        <i class="fas fa-check mr-1"></i>Assign
+                    </button>
+                    <button onclick="event.stopPropagation(); deleteBufferTimetable('${tt.id}')"
+                        class="flex-1 px-3 py-1.5 text-sm border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors">
+                        <i class="fas fa-trash-alt mr-1"></i>Remove
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading buffer timetables:', error);
+        listEl.innerHTML = `
+            <div class="text-center py-8 text-red-500">
+                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                <p class="text-sm">Failed to load timetables. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+function selectBufferTimetable(id) {
+    selectedBufferTimetableId = id;
+    previewBufferTimetable(id);
+}
+
+async function previewBufferTimetable(id) {
+    selectedBufferTimetableId = id;
+    const modal = document.getElementById('tt-preview-modal');
+    const content = document.getElementById('tt-preview-content');
+    const subtitle = document.getElementById('tt-preview-subtitle');
+
+    modal.classList.remove('hidden');
+    content.innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+        </div>
+    `;
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/buffer-timetables/${id}`);
+        if (!res.ok) throw new Error('Failed to load timetable details');
+
+        const tt = await res.json();
+        subtitle.textContent = `${tt.plan} - Timetable #${tt.timetable_id}`;
+
+        // Flatten items - each meeting becomes a separate display entry
+        const flattenedItems = [];
+        const onlineItems = [];
+
+        tt.items.forEach(item => {
+            // Use meetings array if available, otherwise fall back to legacy fields
+            const meetings = item.meetings && item.meetings.length > 0
+                ? item.meetings
+                : [{ day: item.day, start_time: item.start_time, end_time: item.end_time, room: item.room, instructor: item.instructor }];
+
+            meetings.forEach(meeting => {
+                const flatItem = {
+                    course_code: item.course_code,
+                    component: item.component,
+                    section: item.section,
+                    course_title: item.course_title,
+                    class_nbr: item.class_nbr,
+                    capacity: item.capacity,
+                    enrolled: item.enrolled,
+                    day: meeting.day,
+                    start_time: meeting.start_time,
+                    end_time: meeting.end_time,
+                    room: meeting.room,
+                    instructor: meeting.instructor,
+                };
+
+                if (meeting.day) {
+                    flattenedItems.push(flatItem);
+                } else {
+                    // Only add to online if not already there (avoid duplicates)
+                    if (!onlineItems.find(o => o.course_code === item.course_code && o.component === item.component)) {
+                        onlineItems.push(flatItem);
+                    }
+                }
+            });
+        });
+
+        // Group items by day
+        const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const itemsByDay = {};
+
+        flattenedItems.forEach(item => {
+            if (!itemsByDay[item.day]) itemsByDay[item.day] = [];
+            itemsByDay[item.day].push(item);
+        });
+
+        // Sort items by start time within each day
+        Object.keys(itemsByDay).forEach(day => {
+            itemsByDay[day].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+        });
+
+        // Build visual grid with flattened items
+        const previewGridHtml = buildPreviewGrid(flattenedItems);
+
+        // Calculate stats from original items (not flattened)
+        const uniqueCourses = new Set(tt.items.map(i => i.course_code)).size;
+        const totalSections = tt.items.length;
+        const totalMeetings = flattenedItems.length + onlineItems.length;
+
+        content.innerHTML = `
+            <!-- Stats -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-purple-50 rounded-lg p-3 text-center border border-purple-100">
+                    <p class="text-2xl font-bold text-purple-600">${tt.remaining_capacity}</p>
+                    <p class="text-xs text-purple-700">Slots Remaining</p>
+                </div>
+                <div class="bg-blue-50 rounded-lg p-3 text-center border border-blue-100">
+                    <p class="text-2xl font-bold text-blue-600">${totalSections}</p>
+                    <p class="text-xs text-blue-700">Sections</p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-3 text-center border border-gray-200">
+                    <p class="text-2xl font-bold text-gray-600">${uniqueCourses}</p>
+                    <p class="text-xs text-gray-600">Courses</p>
+                </div>
+                <div class="bg-green-50 rounded-lg p-3 text-center border border-green-100">
+                    <p class="text-2xl font-bold text-green-600">${tt.assigned_count}/${tt.batch_size}</p>
+                    <p class="text-xs text-green-700">Assigned</p>
+                </div>
+            </div>
+
+            <!-- Two Column Layout: Grid and Details -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Visual Timetable Grid -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">
+                        <i class="fas fa-th text-blue-500 mr-2"></i>Visual Schedule
+                    </h4>
+                    ${previewGridHtml}
+                    ${onlineItems.length > 0 ? `
+                        <div class="mt-3 border rounded-lg overflow-hidden">
+                            <div class="bg-blue-50 px-3 py-2 font-medium text-blue-800 text-xs">
+                                <i class="fas fa-laptop mr-2"></i>Online / Self-Study
+                            </div>
+                            <div class="p-2 flex flex-wrap gap-2">
+                                ${onlineItems.map(item => `
+                                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        ${item.course_code} (${item.component})
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <!-- Schedule Details by Day -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">
+                        <i class="fas fa-list text-purple-500 mr-2"></i>Schedule Details
+                    </h4>
+                    <div class="space-y-3 max-h-[400px] overflow-y-auto">
+                        ${dayOrder.filter(day => itemsByDay[day]).map(day => `
+                            <div class="border rounded-lg overflow-hidden">
+                                <div class="bg-gray-100 px-3 py-1.5 font-medium text-gray-800 text-xs">
+                                    <i class="fas fa-calendar-day mr-2 text-gray-500"></i>${day}
+                                </div>
+                                <div class="divide-y divide-gray-100">
+                                    ${itemsByDay[day].map(item => `
+                                        <div class="px-3 py-2 flex items-center justify-between hover:bg-gray-50">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-mono bg-gray-200 px-1.5 py-0.5 rounded">
+                                                    ${item.start_time || '--:--'} - ${item.end_time || '--:--'}
+                                                </span>
+                                                <div>
+                                                    <p class="font-medium text-gray-800 text-xs">${item.course_code}</p>
+                                                    <p class="text-xs text-gray-500">${item.section} (${item.component})</p>
+                                                </div>
+                                            </div>
+                                            <div class="text-right text-xs text-gray-500">
+                                                ${item.room ? `<p class="text-xs"><i class="fas fa-map-marker-alt mr-1"></i>${item.room}</p>` : ''}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Update assign button state
+        const assignBtn = document.getElementById('confirm-assign-btn');
+        if (tt.remaining_capacity <= 0) {
+            assignBtn.disabled = true;
+            assignBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            assignBtn.disabled = false;
+            assignBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+    } catch (error) {
+        console.error('Error loading timetable preview:', error);
+        content.innerHTML = `
+            <div class="text-center py-8 text-red-500">
+                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                <p>Failed to load timetable details.</p>
+            </div>
+        `;
+    }
+}
+
+function buildPreviewGrid(items) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const startHour = 8;
+    const endHour = 19;
+    const cellHeight = 32; // px per hour
+
+    // Build header
+    let html = `<div class="preview-grid border rounded-lg overflow-hidden" style="display:grid;grid-template-columns:50px repeat(6,1fr);">`;
+
+    // Header row
+    html += `<div class="bg-gray-100 p-1 text-center text-xs font-semibold border-b border-r"></div>`;
+    days.forEach(day => {
+        html += `<div class="bg-gray-100 p-1 text-center text-xs font-semibold border-b">${day.slice(0, 3)}</div>`;
+    });
+
+    // Time rows
+    for (let hour = startHour; hour < endHour; hour++) {
+        html += `<div class="bg-gray-50 p-1 text-center text-xs text-gray-500 border-b border-r" style="height:${cellHeight}px">${hour}:00</div>`;
+        days.forEach((day, dayIdx) => {
+            html += `<div class="border-b border-l relative preview-cell" data-day="${day}" data-hour="${hour}" style="height:${cellHeight}px"></div>`;
+        });
+    }
+    html += `</div>`;
+
+    // Create a temporary container to parse and add course blocks
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const grid = container.firstChild;
+
+    // Color mapping for courses
+    const colorMap = new Map();
+    let colorIdx = 0;
+    const colors = [
+        { bg: '#dbeafe', border: '#2563eb' },
+        { bg: '#dcfce7', border: '#16a34a' },
+        { bg: '#fef3c7', border: '#d97706' },
+        { bg: '#ede9fe', border: '#7c3aed' },
+        { bg: '#fce7f3', border: '#db2777' },
+        { bg: '#ccfbf1', border: '#0d9488' },
+        { bg: '#fee2e2', border: '#dc2626' },
+    ];
+
+    // Add course blocks
+    items.forEach(item => {
+        if (!item.day || !item.start_time || !item.end_time) return;
+
+        const [sh, sm] = item.start_time.split(':').map(Number);
+        const [eh, em] = item.end_time.split(':').map(Number);
+
+        const cell = grid.querySelector(`.preview-cell[data-day="${item.day}"][data-hour="${sh}"]`);
+        if (!cell) return;
+
+        if (!colorMap.has(item.course_code)) {
+            colorMap.set(item.course_code, colors[colorIdx % colors.length]);
+            colorIdx++;
+        }
+        const color = colorMap.get(item.course_code);
+
+        const duration = (eh - sh) * 60 + (em - sm);
+        const height = (duration / 60) * cellHeight;
+        const top = (sm / 60) * cellHeight;
+
+        const block = document.createElement('div');
+        block.style.cssText = `position:absolute;left:1px;right:1px;top:${top}px;height:${height}px;background:${color.bg};border-left:3px solid ${color.border};padding:2px 4px;font-size:0.6rem;border-radius:3px;overflow:hidden;z-index:1;`;
+        block.innerHTML = `<div class="font-semibold truncate">${item.course_code}</div><div class="truncate opacity-70">${item.component}</div>`;
+        block.title = `${item.course_code}\n${item.section} (${item.component})\n${item.start_time} - ${item.end_time}\n${item.room || 'TBA'}`;
+        cell.appendChild(block);
+    });
+
+    return grid.outerHTML;
+}
+
+function closeTimetablePreview() {
+    document.getElementById('tt-preview-modal').classList.add('hidden');
+}
+
+function confirmAssignFromPreview() {
+    if (selectedBufferTimetableId) {
+        assignBufferTimetable(selectedBufferTimetableId);
+    }
+}
+
+async function assignBufferTimetable(id) {
+    if (!confirm('Are you sure you want to assign this timetable? This will commit it to the student and reserve the seats.')) {
+        return;
+    }
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/assign-buffer?buffer_timetable_id=${id}`, {
+            method: 'POST'
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            showToast('Timetable assigned successfully!', 'success');
+            closeTimetablePreview();
+            closeAssignTimetableModal();
+            // Navigate to view timetable page (same as normal commit flow)
+            setTimeout(() => {
+                window.location.href = `/session/${sessionId}/student/${studentId}/timetable`;
+            }, 500);
+        } else {
+            showToast(data.detail || data.message || 'Failed to assign timetable', 'error');
+        }
+    } catch (error) {
+        console.error('Error assigning timetable:', error);
+        showToast('Error assigning timetable. Please try again.', 'error');
+    }
+}
+
+async function deleteBufferTimetable(id) {
+    if (!confirm('Delete this saved buffer timetable? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/buffer-timetables/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (!res.ok) {
+            showToast(data.detail || data.message || 'Failed to delete saved buffer timetable', 'error');
+            return;
+        }
+
+        showToast(data.message || 'Saved buffer timetable deleted', 'success');
+        await loadBufferTimetables();
+    } catch (error) {
+        console.error('Error deleting buffer timetable:', error);
+        showToast('Error deleting saved buffer timetable. Please try again.', 'error');
+    }
+}
+
+// Initialize
+init();
+</script>
+{% endblock %}

@@ -1,0 +1,1646 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Timetable - AUGSD Portal{% endblock %}
+
+{% block head %}
+<style>
+    /* Calendar Grid */
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: 70px repeat(6, 1fr);
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        font-size: 0.75rem;
+    }
+
+    .calendar-header {
+        background: #f9fafb;
+        padding: 0.75rem;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #374151;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .time-slot {
+        background: #f9fafb;
+        padding: 0.5rem;
+        font-size: 0.7rem;
+        color: #6b7280;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: center;
+    }
+
+    .calendar-cell {
+        border-bottom: 1px solid #e5e7eb;
+        border-left: 1px solid #e5e7eb;
+        min-height: 40px;
+        position: relative;
+    }
+
+    .course-block {
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        padding: 4px 6px;
+        font-size: 0.65rem;
+        border-radius: 4px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform 0.1s;
+    }
+
+    .course-block:hover {
+        transform: scale(1.02);
+        z-index: 10;
+    }
+
+    .course-block.selected {
+        box-shadow: 0 0 0 2px #3b82f6;
+        z-index: 15;
+    }
+
+    .course-color-0 {
+        background: #dbeafe;
+        border-left: 3px solid #2563eb;
+        color: #1e40af;
+    }
+
+    .course-color-1 {
+        background: #dcfce7;
+        border-left: 3px solid #16a34a;
+        color: #166534;
+    }
+
+    .course-color-2 {
+        background: #fef3c7;
+        border-left: 3px solid #d97706;
+        color: #92400e;
+    }
+
+    .course-color-3 {
+        background: #ede9fe;
+        border-left: 3px solid #7c3aed;
+        color: #5b21b6;
+    }
+
+    .course-color-4 {
+        background: #fce7f3;
+        border-left: 3px solid #db2777;
+        color: #9d174d;
+    }
+
+    .course-color-5 {
+        background: #ccfbf1;
+        border-left: 3px solid #0d9488;
+        color: #115e59;
+    }
+
+    .course-color-6 {
+        background: #fee2e2;
+        border-left: 3px solid #dc2626;
+        color: #991b1b;
+    }
+
+    /* Course List Cards */
+    .course-item {
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid transparent;
+    }
+
+    .course-item:hover {
+        background: #f8fafc;
+    }
+
+    .course-item.selected {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+    }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 50;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .modal.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 0.75rem;
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        border: 1px solid #e5e7eb;
+    }
+
+    /* Section Option Cards */
+    .section-card {
+        padding: 0.625rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        background: white;
+    }
+
+    .section-card:hover:not(.disabled) {
+        border-color: #93c5fd;
+        background: #f8fafc;
+    }
+
+    .section-card.current {
+        background: #eff6ff;
+        border-color: #3b82f6;
+        border-width: 2px;
+    }
+
+    .section-card.selected-swap {
+        background: #f0fdf4;
+        border-color: #22c55e;
+        border-width: 2px;
+    }
+
+    .section-card.disabled {
+        background: #f9fafb;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Sticky Sidebar */
+    .sticky-sidebar {
+        position: sticky;
+        top: 1rem;
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+    }
+
+    /* Toast Container */
+    #toast-container {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        color: white;
+        font-size: 0.875rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateX(100%);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 280px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .toast.show {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    .toast.hide {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    .toast-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.4);
+        animation: toast-countdown linear forwards;
+    }
+
+    @keyframes toast-countdown {
+        from {
+            width: 100%;
+        }
+
+        to {
+            width: 0%;
+        }
+    }
+
+    .toast.success {
+        background: #22c55e;
+    }
+
+    .toast.error {
+        background: #ef4444;
+    }
+
+    .toast.warning {
+        background: #f59e0b;
+    }
+
+    .toast.info {
+        background: #3b82f6;
+    }
+
+    /* Skeleton Loading */
+    .skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s infinite;
+        border-radius: 0.375rem;
+    }
+
+    @keyframes skeleton-shimmer {
+        0% {
+            background-position: 200% 0;
+        }
+
+        100% {
+            background-position: -200% 0;
+        }
+    }
+
+    .skeleton-text {
+        height: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .skeleton-text.short {
+        width: 60%;
+    }
+
+    .skeleton-text.medium {
+        width: 80%;
+    }
+
+    .skeleton-box {
+        height: 2.5rem;
+        width: 100%;
+    }
+
+    /* Page Loading Overlay */
+    #page-loading {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 1rem;
+        transition: opacity 0.3s ease;
+    }
+
+    #page-loading.fade-out {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* Refresh indicator */
+    .refresh-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: inherit;
+        z-index: 5;
+    }
+
+    /* Button loading state */
+    .btn-loading {
+        position: relative;
+        pointer-events: none;
+        opacity: 0.8;
+    }
+
+    .btn-loading::after {
+        content: '';
+        position: absolute;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid transparent;
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: btn-spin 0.6s linear infinite;
+    }
+
+    @keyframes btn-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Search loading */
+    .search-loading {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}/students" class="hover:text-primary">Students</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Edit Timetable</span>
+    </div>
+
+    <!-- Student Header -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span class="text-blue-600 font-bold text-lg" id="student-initial">-</span>
+                </div>
+                <div class="ml-4">
+                    <h1 class="text-xl font-bold text-gray-900" id="student-name">Loading...</h1>
+                    <div class="flex items-center space-x-4 text-sm text-gray-600">
+                        <span id="student-campus-id">-</span>
+                        <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs">
+                            <i class="fas fa-edit mr-1"></i>Edit Mode
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button id="revert-btn" onclick="revertToRegistration()"
+                    class="hidden px-4 py-2 border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors">
+                    <i class="fas fa-undo mr-2"></i>Revert to Original
+                </button>
+                <a href="/session/{{ session.id }}/student/{{ student_id }}/timetable"
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Layout: Calendar Left, Sidebar Right -->
+    <div class="flex gap-6">
+        <!-- LEFT: Timetable Calendar (Primary) -->
+        <div class="flex-1 min-w-0">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 relative" id="calendar-wrapper">
+                <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="font-semibold text-gray-900">Weekly Schedule</h2>
+                    <div class="text-sm text-gray-500 flex items-center gap-2">
+                        <span id="calendar-refresh-indicator" class="hidden">
+                            <i class="fas fa-sync fa-spin text-primary"></i>
+                        </span>
+                        <span id="total-units-display" class="font-medium text-gray-900">-</span> total units
+                    </div>
+                </div>
+                <div class="p-4 relative">
+                    <div id="calendar-container" class="calendar-grid">
+                        <!-- Will be populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p class="text-sm text-blue-800">
+                    <i class="fas fa-lightbulb text-blue-500 mr-2"></i>
+                    <strong>Tip:</strong> Click on any course block in the calendar or select from the list on the right
+                    to swap sections or remove courses.
+                </p>
+            </div>
+        </div>
+
+        <!-- RIGHT: Sidebar (Course List + Actions) -->
+        <div class="w-80 flex-shrink-0">
+            <div class="sticky-sidebar space-y-4">
+                <!-- Actions Panel (Shows when course selected) -->
+                <div id="course-actions-panel" class="bg-white rounded-xl shadow-sm border border-blue-200 hidden">
+                    <div class="p-4 bg-blue-50 border-b border-blue-100 rounded-t-xl">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold text-blue-900">Course Actions</h3>
+                            <button onclick="deselectCourse()" class="text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <p class="text-sm text-blue-700 mt-1 truncate" id="selected-course-name">-</p>
+                    </div>
+                    <div class="p-4 space-y-2">
+                        <button id="swap-btn" onclick="openSwapModal()"
+                            class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                            <i class="fas fa-exchange-alt"></i>Swap Section
+                        </button>
+                        <button id="remove-btn" onclick="removeCourse()"
+                            class="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                            <i class="fas fa-trash"></i>Remove Course
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Enrolled Courses List -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 relative" id="course-list-wrapper">
+                    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                        <h2 class="font-semibold text-gray-900 flex items-center gap-2">
+                            Enrolled Courses
+                            <span id="course-list-refresh-indicator" class="hidden">
+                                <i class="fas fa-sync fa-spin text-primary text-sm"></i>
+                            </span>
+                        </h2>
+                        <button onclick="openAddCourseModal()" id="add-course-btn"
+                            class="px-3 py-1.5 bg-primary text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-plus mr-1"></i>Add
+                        </button>
+                    </div>
+                    <div class="p-3 max-h-[calc(100vh-400px)] overflow-y-auto">
+                        <div id="course-list" class="space-y-2">
+                            <!-- Skeleton loading state -->
+                            <div class="course-item">
+                                <div class="skeleton skeleton-text short"></div>
+                                <div class="skeleton skeleton-text medium"></div>
+                                <div class="flex gap-1 mt-2">
+                                    <div class="skeleton" style="width: 40px; height: 20px;"></div>
+                                    <div class="skeleton" style="width: 40px; height: 20px;"></div>
+                                </div>
+                            </div>
+                            <div class="course-item">
+                                <div class="skeleton skeleton-text short"></div>
+                                <div class="skeleton skeleton-text medium"></div>
+                                <div class="flex gap-1 mt-2">
+                                    <div class="skeleton" style="width: 40px; height: 20px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Total Units</span>
+                            <span class="font-semibold text-gray-900" id="total-units">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Course Modal -->
+<div id="add-course-modal" class="modal">
+    <div class="modal-content" style="width: 500px; max-width: 95vw;">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="font-semibold text-gray-900">Add Course</h3>
+            <button onclick="closeAddCourseModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4">
+            <div class="relative mb-4">
+                <input type="text" id="add-course-search" placeholder="Search courses..."
+                    class="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                    oninput="debounceAddCourseSearch()">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+                <div id="search-spinner" class="search-loading hidden">
+                    <i class="fas fa-spinner fa-spin text-gray-400"></i>
+                </div>
+            </div>
+            <div id="add-course-results" class="space-y-2 max-h-80 overflow-y-auto">
+                <p class="text-sm text-gray-500 text-center py-6">Type to search courses</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Swap Section Modal -->
+<div id="swap-section-modal" class="modal">
+    <div class="modal-content" style="width: 800px; max-width: 95vw;">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-gray-900">Swap Sections</h3>
+                <p class="text-sm text-gray-500" id="swap-course-name">-</p>
+            </div>
+            <button onclick="closeSwapModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+        <div class="p-4 overflow-y-auto" style="max-height: 60vh;">
+            <div id="swap-sections-loading" class="text-center py-12">
+                <i class="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+                <p class="text-sm text-gray-500 mt-3">Loading sections...</p>
+            </div>
+            <div id="swap-sections-grid" class="hidden">
+                <!-- Components will be rendered here -->
+            </div>
+            <div id="swap-no-sections" class="text-center py-12 hidden">
+                <i class="fas fa-exclamation-circle text-3xl text-yellow-500"></i>
+                <p class="text-sm text-gray-600 mt-3">No alternative sections available</p>
+            </div>
+        </div>
+        <div id="swap-footer" class="p-4 border-t border-gray-200 flex justify-between items-center bg-gray-50 hidden">
+            <div id="swap-summary" class="text-sm text-gray-600">
+                Select sections to swap
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeSwapModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm">
+                    Cancel
+                </button>
+                <button id="swap-confirm-btn" onclick="performMultiSwap()"
+                    class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-exchange-alt mr-1"></i>Swap Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Select Sections Modal (for adding course) -->
+<div id="select-sections-modal" class="modal">
+    <div class="modal-content" style="width: 600px; max-width: 95vw;">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-gray-900">Select Sections</h3>
+                <p class="text-sm text-gray-500" id="select-course-name">-</p>
+            </div>
+            <button onclick="closeSelectSectionsModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 overflow-y-auto" style="max-height: 60vh;">
+            <div id="select-sections-loading" class="text-center py-12">
+                <i class="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+                <p class="text-sm text-gray-500 mt-3">Finding compatible sections...</p>
+            </div>
+            <div id="select-sections-list" class="space-y-4 hidden">
+                <!-- Components will be populated here -->
+            </div>
+            <div id="select-no-sections" class="text-center py-12 hidden">
+                <i class="fas fa-exclamation-circle text-3xl text-red-500"></i>
+                <p class="text-sm text-gray-600 mt-3">No compatible sections available</p>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 flex justify-end gap-2 bg-gray-50">
+            <button onclick="closeSelectSectionsModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm">
+                Cancel
+            </button>
+            <button onclick="confirmAddCourse()" id="confirm-add-btn"
+                class="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+                <i class="fas fa-plus mr-1"></i>Add Course
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirm-modal" class="modal">
+    <div class="modal-content" style="width: 400px; max-width: 95vw;">
+        <div class="p-6 text-center">
+            <div id="confirm-icon"
+                class="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center bg-red-100">
+                <i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2" id="confirm-title">Confirm Action</h3>
+            <p class="text-sm text-gray-500 mb-6" id="confirm-message">Are you sure?</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="handleConfirmCancel()"
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                    Cancel
+                </button>
+                <button id="confirm-action-btn"
+                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-30 z-40 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 flex items-center space-x-4 shadow-xl border border-gray-200">
+        <i class="fas fa-spinner fa-spin text-2xl text-primary"></i>
+        <span class="text-gray-700" id="loading-message">Processing...</span>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Page Loading Overlay -->
+<div id="page-loading">
+    <div class="flex flex-col items-center">
+        <i class="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+        <p class="text-gray-600 font-medium">Loading timetable...</p>
+        <p class="text-gray-400 text-sm mt-1">Please wait</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const sessionId = '{{ session.id }}';
+    const studentId = '{{ student_id }}';
+    let timetableData = null;
+    let coursesData = [];
+    let selectedCourseId = null;
+    let selectedSectionId = null;
+    let addCourseSearchTimeout = null;
+    let selectedSectionsToAdd = new Map();
+
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const START_HOUR = 8;
+    const END_HOUR = 19;
+
+    // Initialize calendar grid
+    function initCalendar() {
+        const container = document.getElementById('calendar-container');
+        let html = `
+        <div class="calendar-header"></div>
+        ${DAY_SHORT.map(day => `<div class="calendar-header">${day}</div>`).join('')}
+    `;
+
+        for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+            const time12 = hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`;
+            html += `<div class="time-slot">${time12}</div>`;
+            DAYS.forEach(day => {
+                html += `<div class="calendar-cell" data-day="${day}" data-hour="${hour}"></div>`;
+            });
+        }
+
+        container.innerHTML = html;
+    }
+
+    async function loadStudent() {
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}`);
+            if (res && res.ok) {
+                const student = await res.json();
+                document.getElementById('student-name').textContent = student.name;
+                document.getElementById('student-initial').textContent = student.name.charAt(0).toUpperCase();
+                document.getElementById('student-campus-id').textContent = student.campus_id;
+            }
+        } catch (error) {
+            console.error('Error loading student:', error);
+        }
+    }
+
+    async function loadCourses() {
+        try {
+            const res = await api(`/api/sessions/${sessionId}/courses`);
+            if (res && res.ok) {
+                coursesData = await res.json();
+            }
+        } catch (error) {
+            console.error('Error loading courses:', error);
+        }
+    }
+
+    async function loadTimetable(showRefreshIndicator = false) {
+        // Show refresh indicators if this is a reload (not initial load)
+        if (showRefreshIndicator) {
+            document.getElementById('calendar-refresh-indicator')?.classList.remove('hidden');
+            document.getElementById('course-list-refresh-indicator')?.classList.remove('hidden');
+        }
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable`);
+            if (res && res.ok) {
+                timetableData = await res.json();
+                renderCalendar();
+                renderCourseList();
+                updateRevertButton();
+            } else if (res && res.status === 404) {
+                document.getElementById('course-list').innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No timetable found</p>';
+            }
+        } catch (error) {
+            console.error('Error loading timetable:', error);
+        } finally {
+            // Hide refresh indicators
+            document.getElementById('calendar-refresh-indicator')?.classList.add('hidden');
+            document.getElementById('course-list-refresh-indicator')?.classList.add('hidden');
+        }
+    }
+
+    function renderCalendar() {
+        if (!timetableData || !timetableData.items) return;
+
+        // Clear existing blocks
+        document.querySelectorAll('.course-block').forEach(el => el.remove());
+
+        // Create color map for courses
+        const colorMap = new Map();
+        let colorIndex = 0;
+
+        timetableData.items.forEach(item => {
+            const section = item.course_section;
+            if (!section) return;
+
+            const dayIndex = DAYS.indexOf(section.day);
+            if (dayIndex === -1) return;
+
+            const startTime = section.mtg_start;
+            const endTime = section.mtg_end;
+            if (!startTime || !endTime) return;
+
+            const [startHour, startMin] = startTime.split(':').map(Number);
+            const [endHour, endMin] = endTime.split(':').map(Number);
+
+            const cell = document.querySelector(`.calendar-cell[data-day="${section.day}"][data-hour="${startHour}"]`);
+            if (!cell) return;
+
+            const courseKey = section.course_id;
+            if (!colorMap.has(courseKey)) {
+                colorMap.set(courseKey, colorIndex++ % 7);
+            }
+            const colorClass = `course-color-${colorMap.get(courseKey)}`;
+
+            const durationMinutes = (endHour - startHour) * 60 + (endMin - startMin);
+            const height = (durationMinutes / 60) * 40;
+            const top = (startMin / 60) * 40;
+
+            const course = section.course;
+            const block = document.createElement('div');
+            block.className = `course-block ${colorClass}`;
+            block.style.top = `${top}px`;
+            block.style.height = `${height}px`;
+            block.dataset.courseId = courseKey;
+            block.dataset.sectionId = section.id;
+            block.innerHTML = `
+            <div class="font-semibold truncate">${course?.subject || ''} ${course?.catalog || ''}</div>
+            <div class="truncate opacity-80">${section.component} ${section.section}</div>
+        `;
+            block.title = `${course?.subject} ${course?.catalog} - ${section.section}\n${formatTime(startTime)} - ${formatTime(endTime)}\n${section.room || 'TBA'}\nClick to edit`;
+
+            block.onclick = () => selectCourse(courseKey, section.id, course);
+
+            cell.appendChild(block);
+        });
+    }
+
+    function renderCourseList() {
+        if (!timetableData || !timetableData.items) return;
+
+        const container = document.getElementById('course-list');
+        const courseSectionsMap = new Map();
+
+        // Group by course first, then by class_nbr
+        timetableData.items.forEach(item => {
+            const section = item.course_section;
+            const course = section?.course;
+            if (!course) return;
+
+            if (!courseSectionsMap.has(course.id)) {
+                courseSectionsMap.set(course.id, { course, classSections: new Map() });
+            }
+
+            const courseData = courseSectionsMap.get(course.id);
+            const classNbr = section.class_nbr;
+
+            if (!courseData.classSections.has(classNbr)) {
+                courseData.classSections.set(classNbr, section);
+            }
+        });
+
+        let totalUnits = 0;
+
+        container.innerHTML = Array.from(courseSectionsMap.values()).map(({ course, classSections }) => {
+            totalUnits += course.max_units || 0;
+            const isSelected = selectedCourseId === course.id;
+            return `
+            <div class="course-item ${isSelected ? 'selected' : ''}"
+                 onclick="selectCourseFromList('${course.id}')">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="font-semibold text-gray-900 text-sm">${course.subject} ${course.catalog}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">${course.max_units || '-'}u</span>
+                        <button onclick="removeCourseById('${course.id}', event)"
+                                title="Remove ${course.subject} ${course.catalog}"
+                                class="text-gray-400 hover:text-red-600 transition-colors">
+                            <i class="fas fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 truncate mb-2">${course.title}</p>
+                <div class="flex flex-wrap gap-1">
+                    ${Array.from(classSections.values()).map(s => `
+                        <span class="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">${s.component} ${s.section}</span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        }).join('');
+
+        document.getElementById('total-units').textContent = `${totalUnits}`;
+        document.getElementById('total-units-display').textContent = totalUnits;
+    }
+
+    function selectCourse(courseId, sectionId, courseInfo) {
+        selectedCourseId = courseId;
+        selectedSectionId = sectionId;
+
+        // Highlight selected blocks
+        document.querySelectorAll('.course-block').forEach(block => {
+            if (block.dataset.courseId === courseId) {
+                block.classList.add('selected');
+            } else {
+                block.classList.remove('selected');
+            }
+        });
+
+        // Show actions panel
+        const panel = document.getElementById('course-actions-panel');
+        panel.classList.remove('hidden');
+        document.getElementById('selected-course-name').textContent =
+            `${courseInfo?.subject || ''} ${courseInfo?.catalog || ''} - ${courseInfo?.title || ''}`;
+
+        renderCourseList();
+    }
+
+    function selectCourseFromList(courseId) {
+        const courseData = Array.from(timetableData.items).find(item =>
+            item.course_section?.course?.id === courseId
+        );
+        if (courseData) {
+            const section = courseData.course_section;
+            selectCourse(courseId, section.id, section.course);
+        }
+    }
+
+    function deselectCourse() {
+        selectedCourseId = null;
+        selectedSectionId = null;
+
+        document.querySelectorAll('.course-block').forEach(block => {
+            block.classList.remove('selected');
+        });
+
+        document.getElementById('course-actions-panel').classList.add('hidden');
+        renderCourseList();
+    }
+
+    // ==================== Add Course ====================
+
+    function openAddCourseModal() {
+        document.getElementById('add-course-modal').classList.add('active');
+        document.getElementById('add-course-search').value = '';
+        document.getElementById('add-course-results').innerHTML = '<p class="text-sm text-gray-500 text-center py-6">Type to search courses</p>';
+        document.getElementById('add-course-search').focus();
+    }
+
+    function closeAddCourseModal() {
+        document.getElementById('add-course-modal').classList.remove('active');
+    }
+
+    function debounceAddCourseSearch() {
+        if (addCourseSearchTimeout) clearTimeout(addCourseSearchTimeout);
+
+        const query = document.getElementById('add-course-search').value;
+        const spinner = document.getElementById('search-spinner');
+
+        if (query.length > 0) {
+            spinner.classList.remove('hidden');
+        } else {
+            spinner.classList.add('hidden');
+        }
+
+        addCourseSearchTimeout = setTimeout(searchCoursesToAdd, 300);
+    }
+
+    function searchCoursesToAdd() {
+        const query = document.getElementById('add-course-search').value.toLowerCase();
+        const resultsContainer = document.getElementById('add-course-results');
+        const spinner = document.getElementById('search-spinner');
+
+        // Hide spinner after search completes
+        spinner.classList.add('hidden');
+
+        if (!query) {
+            resultsContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-6">Type to search courses</p>';
+            return;
+        }
+
+        const enrolledCourseIds = new Set();
+        if (timetableData && timetableData.items) {
+            timetableData.items.forEach(item => {
+                if (item.course_section?.course_id) {
+                    enrolledCourseIds.add(item.course_section.course_id);
+                }
+            });
+        }
+
+        const filtered = coursesData.filter(course => {
+            if (enrolledCourseIds.has(course.id)) return false;
+            const searchStr = `${course.subject} ${course.catalog} ${course.title}`.toLowerCase();
+            return searchStr.includes(query);
+        }).slice(0, 20);
+
+        if (filtered.length === 0) {
+            resultsContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-6">No courses found</p>';
+            return;
+        }
+
+        resultsContainer.innerHTML = filtered.map(course => `
+        <div class="p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors"
+             onclick="selectCourseToAdd('${course.id}', '${course.subject}', '${course.catalog}', '${course.title.replace(/'/g, "\\'")}')">
+            <div class="flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                    <p class="font-semibold text-gray-900 text-sm">${course.subject} ${course.catalog}</p>
+                    <p class="text-xs text-gray-500 truncate">${course.title}</p>
+                </div>
+                <div class="text-xs text-gray-500 ml-2">${course.max_units || '-'} units</div>
+            </div>
+        </div>
+    `).join('');
+    }
+
+    async function selectCourseToAdd(courseId, subject, catalog, title) {
+        closeAddCourseModal();
+
+        document.getElementById('select-sections-modal').classList.add('active');
+        document.getElementById('select-course-name').textContent = `${subject} ${catalog} - ${title}`;
+        document.getElementById('select-sections-loading').classList.remove('hidden');
+        document.getElementById('select-sections-list').classList.add('hidden');
+        document.getElementById('select-no-sections').classList.add('hidden');
+        document.getElementById('confirm-add-btn').disabled = true;
+
+        selectedSectionsToAdd.clear();
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/compatible-sections`, {
+                method: 'POST',
+                body: JSON.stringify({ course_id: courseId, exclude_section_ids: [] }),
+            });
+
+            if (res && res.ok) {
+                const data = await res.json();
+                document.getElementById('select-sections-loading').classList.add('hidden');
+
+                if (data.success && Object.keys(data.components).length > 0) {
+                    renderSelectSections(data.components, courseId);
+                } else {
+                    document.getElementById('select-no-sections').classList.remove('hidden');
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching compatible sections:', error);
+            document.getElementById('select-sections-loading').classList.add('hidden');
+            document.getElementById('select-no-sections').classList.remove('hidden');
+        }
+    }
+
+    function renderSelectSections(components, courseId) {
+        const container = document.getElementById('select-sections-list');
+        container.classList.remove('hidden');
+        container.dataset.courseId = courseId;
+
+        const componentOrder = ['LEC', 'TUT', 'LAB', 'PRA', 'PRJ'];
+        const sortedComponents = Object.keys(components).sort((a, b) => {
+            const aIdx = componentOrder.indexOf(a.toUpperCase());
+            const bIdx = componentOrder.indexOf(b.toUpperCase());
+            return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+        });
+
+        container.innerHTML = sortedComponents.map(comp => {
+            const sections = components[comp];
+            return `
+            <div class="mb-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded">${comp}</span>
+                    <span class="text-xs text-gray-500">Select one</span>
+                </div>
+                <div class="space-y-2">
+                    ${sections.map(sec => `
+                        <div class="section-card"
+                             data-component="${comp}"
+                             data-section-ids="${sec.section_ids.join(',')}"
+                             onclick="toggleSectionSelection(this, '${comp}')">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="font-semibold text-sm">${sec.section}</span>
+                                    <span class="text-gray-500 text-sm ml-2">${sec.meeting_times || 'TBA'}</span>
+                                </div>
+                                <span class="${sec.available_seats > 0 ? 'text-green-600' : 'text-red-600'} text-xs font-medium">
+                                    ${sec.available_seats} seats
+                                </span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                ${sec.instructor || 'TBA'} &bull; ${sec.room || 'TBA'}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        }).join('');
+
+        container.dataset.requiredComponents = JSON.stringify(sortedComponents);
+    }
+
+    function toggleSectionSelection(element, component) {
+        const container = element.closest('.mb-4');
+        container.querySelectorAll('.section-card').forEach(el => {
+            el.classList.remove('selected-swap');
+        });
+
+        element.classList.add('selected-swap');
+        selectedSectionsToAdd.set(component, element.dataset.sectionIds.split(','));
+
+        updateAddCourseButton();
+    }
+
+    function updateAddCourseButton() {
+        const container = document.getElementById('select-sections-list');
+        const requiredComponents = JSON.parse(container.dataset.requiredComponents || '[]');
+        const allSelected = requiredComponents.every(comp => selectedSectionsToAdd.has(comp));
+        document.getElementById('confirm-add-btn').disabled = !allSelected;
+    }
+
+    async function confirmAddCourse() {
+        const container = document.getElementById('select-sections-list');
+        const courseId = container.dataset.courseId;
+        const sectionIds = Array.from(selectedSectionsToAdd.values()).flat();
+
+        const btn = document.getElementById('confirm-add-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Adding...';
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/add-course`, {
+                method: 'POST',
+                body: JSON.stringify({ course_id: courseId, section_ids: sectionIds }),
+            });
+
+            if (res && res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    closeSelectSectionsModal();
+                    showToast('Course added successfully', 'success');
+                    await loadTimetable(true);
+                } else {
+                    showToast(data.message || 'Failed to add course', 'error');
+                }
+            } else {
+                const data = await res.json();
+                showToast(data.detail || 'Failed to add course', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding course:', error);
+            showToast('Error adding course', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Add Course';
+        }
+    }
+
+    function closeSelectSectionsModal() {
+        document.getElementById('select-sections-modal').classList.remove('active');
+        selectedSectionsToAdd.clear();
+    }
+
+    // ==================== Swap Section (Multi-Component) ====================
+
+    let swapSelections = new Map();
+    let swapCurrentSections = {};
+
+    async function openSwapModal() {
+        if (!selectedCourseId) return;
+
+        // Show loading state on swap button
+        const swapBtn = document.getElementById('swap-btn');
+        const originalSwapBtnText = swapBtn.innerHTML;
+        swapBtn.disabled = true;
+        swapBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Loading...';
+
+        swapSelections = new Map();
+        swapCurrentSections = {};
+
+        document.getElementById('swap-section-modal').classList.add('active');
+        document.getElementById('swap-sections-loading').classList.remove('hidden');
+        document.getElementById('swap-sections-grid').classList.add('hidden');
+        document.getElementById('swap-no-sections').classList.add('hidden');
+        document.getElementById('swap-footer').classList.add('hidden');
+
+        const courseData = timetableData.items.find(item =>
+            item.course_section?.course_id === selectedCourseId
+        );
+        const course = courseData?.course_section?.course;
+        document.getElementById('swap-course-name').textContent =
+            `${course?.subject || ''} ${course?.catalog || ''} - ${course?.title || ''}`;
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/compatible-sections-with-conflicts`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    course_id: selectedCourseId,
+                    exclude_section_ids: []
+                }),
+            });
+
+            if (res && res.ok) {
+                const data = await res.json();
+                document.getElementById('swap-sections-loading').classList.add('hidden');
+
+                if (data.success && Object.keys(data.components).length > 0) {
+                    swapCurrentSections = data.current_sections || {};
+                    renderSwapSectionsGrid(data.components);
+                    document.getElementById('swap-footer').classList.remove('hidden');
+                } else {
+                    document.getElementById('swap-no-sections').classList.remove('hidden');
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching sections:', error);
+            document.getElementById('swap-sections-loading').classList.add('hidden');
+            document.getElementById('swap-no-sections').classList.remove('hidden');
+        } finally {
+            // Restore swap button state
+            swapBtn.disabled = false;
+            swapBtn.innerHTML = originalSwapBtnText;
+        }
+    }
+
+    function renderSwapSectionsGrid(components) {
+        const container = document.getElementById('swap-sections-grid');
+        container.classList.remove('hidden');
+
+        const componentOrder = ['LEC', 'TUT', 'LAB', 'PRA', 'PRJ'];
+        const sortedComponents = Object.keys(components).sort((a, b) => {
+            const aIdx = componentOrder.indexOf(a.toUpperCase());
+            const bIdx = componentOrder.indexOf(b.toUpperCase());
+            return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+        });
+
+        const gridCols = sortedComponents.length === 1 ? 1 : sortedComponents.length === 2 ? 2 : 3;
+
+        container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-${Math.min(sortedComponents.length, 2)} lg:grid-cols-${gridCols} gap-4">
+            ${sortedComponents.map(comp => renderComponentCard(comp, components[comp])).join('')}
+        </div>
+    `;
+
+        updateSwapSummary();
+    }
+
+    function renderComponentCard(component, sections) {
+        const currentClassNbr = swapCurrentSections[component];
+
+        return `
+        <div class="bg-gray-50 rounded-lg p-3" data-component="${component}">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded">${component}</span>
+                <span class="text-xs text-gray-500">${sections.length} section${sections.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="space-y-2 max-h-72 overflow-y-auto">
+                ${sections.map(sec => renderSectionOption(component, sec, currentClassNbr)).join('')}
+            </div>
+        </div>
+    `;
+    }
+
+    function renderSectionOption(component, section, currentClassNbr) {
+        const isCurrent = section.class_nbr === currentClassNbr;
+        const isCompatible = section.is_compatible !== false;
+        const isSelected = swapSelections.get(component)?.newClassNbr === section.class_nbr;
+
+        let cardClass = 'section-card';
+        if (isCurrent) cardClass += ' current';
+        else if (!isCompatible) cardClass += ' disabled';
+        else if (isSelected) cardClass += ' selected-swap';
+
+        const clickHandler = isCurrent || !isCompatible
+            ? ''
+            : `onclick="selectSwapSection('${component}', ${currentClassNbr}, ${section.class_nbr})"`;
+
+        return `
+        <div class="${cardClass}" ${clickHandler} data-class-nbr="${section.class_nbr}">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1">
+                        ${isCurrent ? '<i class="fas fa-check-circle text-blue-500 text-xs"></i>' : ''}
+                        ${isSelected ? '<i class="fas fa-arrow-right text-green-500 text-xs"></i>' : ''}
+                        <span class="font-semibold text-sm">${section.section}</span>
+                        ${isCurrent ? '<span class="text-xs text-blue-600 ml-1">(Current)</span>' : ''}
+                    </div>
+                    <div class="text-xs text-gray-500 truncate">
+                        ${section.meeting_times || 'TBA'}
+                    </div>
+                    <div class="text-xs text-gray-400 truncate">${section.instructor || 'TBA'}</div>
+                </div>
+                <div class="text-right flex-shrink-0 ml-2">
+                    ${!isCompatible ? `
+                        <span class="text-xs text-red-500"><i class="fas fa-ban"></i></span>
+                    ` : `
+                        <span class="text-xs font-medium ${section.available_seats > 0 ? 'text-green-600' : 'text-red-600'}">
+                            ${section.available_seats}
+                        </span>
+                    `}
+                </div>
+            </div>
+            ${!isCompatible && section.conflict_reason ? `
+                <div class="mt-1 text-xs text-red-500 truncate">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>${section.conflict_reason}
+                </div>
+            ` : ''}
+        </div>
+    `;
+    }
+
+    function selectSwapSection(component, oldClassNbr, newClassNbr) {
+        const existing = swapSelections.get(component);
+        if (existing && existing.newClassNbr === newClassNbr) {
+            swapSelections.delete(component);
+        } else {
+            swapSelections.set(component, { oldClassNbr: oldClassNbr, newClassNbr: newClassNbr });
+        }
+
+        updateComponentSelectionUI(component);
+        updateSwapSummary();
+
+        // Brief pulse animation on the confirm button when selection changes
+        const btn = document.getElementById('swap-confirm-btn');
+        if (swapSelections.size > 0) {
+            btn.classList.add('ring-2', 'ring-blue-300');
+            setTimeout(() => btn.classList.remove('ring-2', 'ring-blue-300'), 300);
+        }
+    }
+
+    function updateComponentSelectionUI(component) {
+        const container = document.querySelector(`[data-component="${component}"]`);
+        if (!container) return;
+
+        const selectedClassNbr = swapSelections.get(component)?.newClassNbr;
+        const currentClassNbr = swapCurrentSections[component];
+
+        container.querySelectorAll('.section-card').forEach(option => {
+            const classNbr = parseInt(option.dataset.classNbr);
+            const isCurrent = classNbr === currentClassNbr;
+            const isSelected = classNbr === selectedClassNbr;
+
+            option.classList.remove('selected-swap');
+            if (!isCurrent && isSelected) {
+                option.classList.add('selected-swap');
+            }
+        });
+    }
+
+    function updateSwapSummary() {
+        const summaryEl = document.getElementById('swap-summary');
+        const confirmBtn = document.getElementById('swap-confirm-btn');
+
+        const count = swapSelections.size;
+
+        if (count === 0) {
+            summaryEl.textContent = 'Select sections to swap';
+            confirmBtn.disabled = true;
+        } else {
+            const details = Array.from(swapSelections.keys()).join(', ');
+            summaryEl.innerHTML = `<span class="text-green-600 font-semibold">${count}</span> component${count > 1 ? 's' : ''} selected: ${details}`;
+            confirmBtn.disabled = false;
+        }
+    }
+
+    async function performMultiSwap() {
+        if (swapSelections.size === 0) return;
+
+        const swaps = Array.from(swapSelections.values()).map(s => ({
+            old_class_nbr: s.oldClassNbr,
+            new_class_nbr: s.newClassNbr
+        }));
+
+        // Immediately show loading state on button
+        const btn = document.getElementById('swap-confirm-btn');
+        const originalBtnText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Swapping...';
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/multi-swap`, {
+                method: 'POST',
+                body: JSON.stringify({ swaps }),
+            });
+
+            if (res && res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    // Show success immediately before closing modal
+                    showToast(data.message || `Swapped ${data.completed_swaps} section(s) successfully!`, 'success');
+                    closeSwapModal();
+                    deselectCourse();
+                    await loadTimetable(true);
+                } else {
+                    showToast(data.message || 'Failed to swap sections', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnText;
+                }
+            } else {
+                const data = await res?.json();
+                showToast(data?.detail || 'Failed to swap sections', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalBtnText;
+            }
+        } catch (error) {
+            console.error('Error swapping sections:', error);
+            showToast('Error swapping sections', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+        }
+    }
+
+    function closeSwapModal() {
+        document.getElementById('swap-section-modal').classList.remove('active');
+        swapSelections = new Map();
+        swapCurrentSections = {};
+    }
+
+    // ==================== Revert to Registration ====================
+
+    async function revertToRegistration() {
+        const confirmed = await showConfirmModal(
+            'Revert to Original Registration',
+            'This will restore your timetable to the exact state from your original registration, undoing all manual changes. This cannot be undone.',
+            'warning'
+        );
+
+        if (!confirmed) return;
+
+        const btn = document.getElementById('revert-btn');
+        const originalBtnText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Reverting...';
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/revert-to-registration`, {
+                method: 'POST',
+            });
+
+            if (res && res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    deselectCourse();
+                    showToast(`Timetable restored with ${data.restored_section_count} sections`, 'success');
+                    await loadTimetable(true);
+                } else {
+                    showToast(data.message || 'Failed to revert timetable', 'error');
+                }
+            } else {
+                const data = await res.json();
+                showToast(data.detail || 'Failed to revert timetable', 'error');
+            }
+        } catch (error) {
+            console.error('Error reverting timetable:', error);
+            showToast('Error reverting timetable', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+        }
+    }
+
+    function updateRevertButton() {
+        const revertBtn = document.getElementById('revert-btn');
+        if (timetableData && timetableData.source === 'from_registration' && timetableData.status === 'edited') {
+            revertBtn.classList.remove('hidden');
+        } else {
+            revertBtn.classList.add('hidden');
+        }
+    }
+
+    // ==================== Remove Course ====================
+
+    async function removeCourse() {
+        if (!selectedCourseId) return;
+        await removeCourseById(selectedCourseId);
+    }
+
+    async function removeCourseById(courseId, event) {
+        if (event) event.stopPropagation();
+        if (!courseId) return;
+
+        const courseData = timetableData.items.find(item =>
+            item.course_section?.course_id === courseId
+        );
+        const course = courseData?.course_section?.course;
+        const courseName = `${course?.subject || ''} ${course?.catalog || ''}`;
+
+        const confirmed = await showConfirmModal(
+            'Remove Course',
+            `Remove ${courseName} from the timetable? This will remove all sections of this course.`,
+            'danger'
+        );
+
+        if (!confirmed) return;
+
+        // Show loading state on the actions-panel button when it is the trigger
+        const removeBtn = document.getElementById('remove-btn');
+        const originalBtnText = removeBtn?.innerHTML;
+        if (removeBtn) {
+            removeBtn.disabled = true;
+            removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Removing...';
+        }
+
+        const restoreBtn = () => {
+            if (removeBtn) {
+                removeBtn.disabled = false;
+                removeBtn.innerHTML = originalBtnText;
+            }
+        };
+
+        try {
+            const res = await api(`/api/sessions/${sessionId}/students/${studentId}/timetable/remove-course`, {
+                method: 'POST',
+                body: JSON.stringify({ course_id: courseId }),
+            });
+
+            if (res && res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    if (selectedCourseId === courseId) deselectCourse();
+                    showToast(`${courseName} removed`, 'success');
+                    await loadTimetable(true);
+                    return;
+                }
+                showToast(data.message || 'Failed to remove course', 'error');
+            } else {
+                const data = await res.json();
+                showToast(data.detail || 'Failed to remove course', 'error');
+            }
+            restoreBtn();
+        } catch (error) {
+            console.error('Error removing course:', error);
+            showToast('Error removing course', 'error');
+            restoreBtn();
+        }
+    }
+
+    // ==================== Utilities ====================
+
+    function formatTime(timeStr) {
+        if (!timeStr) return 'TBA';
+        const [hours, minutes] = timeStr.split(':');
+        const h = parseInt(hours);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${minutes} ${ampm}`;
+    }
+
+    // ==================== Confirmation Modal ====================
+
+    let confirmResolver = null;
+
+    function showConfirmModal(title, message, type = 'danger') {
+        return new Promise((resolve) => {
+            confirmResolver = resolve;
+
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+
+            const icon = document.getElementById('confirm-icon');
+            const btn = document.getElementById('confirm-action-btn');
+
+            if (type === 'danger') {
+                icon.className = 'mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center bg-red-100';
+                icon.innerHTML = '<i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>';
+                btn.className = 'px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm';
+            } else if (type === 'warning') {
+                icon.className = 'mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center bg-amber-100';
+                icon.innerHTML = '<i class="fas fa-exclamation-circle text-2xl text-amber-600"></i>';
+                btn.className = 'px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm';
+            }
+
+            btn.onclick = () => handleConfirmAction();
+            document.getElementById('confirm-modal').classList.add('active');
+        });
+    }
+
+    function handleConfirmAction() {
+        document.getElementById('confirm-modal').classList.remove('active');
+        if (confirmResolver) confirmResolver(true);
+        confirmResolver = null;
+    }
+
+    function handleConfirmCancel() {
+        document.getElementById('confirm-modal').classList.remove('active');
+        if (confirmResolver) confirmResolver(false);
+        confirmResolver = null;
+    }
+
+    // ==================== Loading & Toast ====================
+
+    function showLoading(message = 'Processing...') {
+        document.getElementById('loading-message').textContent = message;
+        document.getElementById('loading-overlay').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+        document.getElementById('loading-overlay').classList.add('hidden');
+    }
+
+    function showToast(message, type = 'info', duration = 4000) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        // Add icon based on type
+        let icon = 'fa-info-circle';
+        if (type === 'success') icon = 'fa-check-circle';
+        else if (type === 'error') icon = 'fa-exclamation-circle';
+        else if (type === 'warning') icon = 'fa-exclamation-triangle';
+
+        // Success toasts dismiss faster
+        const actualDuration = type === 'success' ? 3000 : duration;
+
+        toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span class="flex-1">${message}</span>
+        <button onclick="this.parentElement.remove()" class="ml-2 opacity-70 hover:opacity-100">
+            <i class="fas fa-times text-sm"></i>
+        </button>
+        <div class="toast-progress" style="animation-duration: ${actualDuration}ms;"></div>
+    `;
+        container.appendChild(toast);
+
+        // Trigger animation on next frame
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }, actualDuration);
+    }
+
+    // ==================== Initialize ====================
+
+    async function initPage() {
+        initCalendar();
+
+        // Load all data in parallel
+        try {
+            await Promise.all([
+                loadStudent(),
+                loadCourses(),
+                loadTimetable()
+            ]);
+        } catch (error) {
+            console.error('Error initializing page:', error);
+            showToast('Failed to load timetable data', 'error');
+        } finally {
+            // Hide page loading overlay with fade animation
+            const pageLoading = document.getElementById('page-loading');
+            pageLoading.classList.add('fade-out');
+            setTimeout(() => pageLoading.remove(), 300);
+        }
+    }
+
+    initPage();
+
+    // Close modals on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeAddCourseModal();
+            closeSwapModal();
+            closeSelectSectionsModal();
+            handleConfirmCancel();
+        }
+    });
+
+    // Close modals on backdrop click
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+    });
+</script>
+{% endblock %}

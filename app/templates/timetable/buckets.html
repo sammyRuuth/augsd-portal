@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+
+{% block title %}Timetable buckets - {{ session.name }} - AUGSD Portal{% endblock %}
+
+{% block head %}
+<style>
+.search-container { position: relative; }
+.search-input-wrapper { position: relative; }
+.search-input-wrapper input { width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; font-size: 0.875rem; }
+.search-input-wrapper input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15); }
+.search-input-wrapper .search-icon { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); color: #9ca3af; }
+.search-input-wrapper .clear-btn { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); color: #9ca3af; cursor: pointer; padding: 0.25rem; }
+.filter-tags { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; }
+.filter-tag { padding: 0.25rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid transparent; }
+.filter-tag.inactive { background: #f3f4f6; color: #6b7280; }
+.filter-tag.active { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.tabs { display: flex; gap: 0.375rem; margin-top: 0.75rem; }
+.tab { flex: 1; padding: 0.5rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 0.5rem; cursor: pointer; font-size: 0.8125rem; font-weight: 600; color: #6b7280; background: #fafafa; }
+.tab.active { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.tab-badge { display: inline-flex; min-width: 1.25rem; padding: 0 0.375rem; border-radius: 9999px; font-size: 0.6875rem; margin-left: 0.25rem; }
+details.advanced summary { cursor: pointer; font-size: 0.8125rem; font-weight: 500; color: #6b7280; }
+details.advanced summary:hover { color: #374151; }
+details.advanced[open] summary { margin-bottom: 0.75rem; color: #374151; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-3">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Timetable buckets</span>
+    </div>
+
+    <div class="mb-6">
+        <h1 class="text-xl font-bold text-gray-900">Timetable buckets</h1>
+        <p class="mt-0.5 text-sm text-gray-500">Enumerate clash-free timetables and save them as buffer plans.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 space-y-4">
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-gray-900">Courses</h2>
+                    <div class="relative">
+                        <button type="button" onclick="toggleBucketDraftsMenu()"
+                            class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md" title="Drafts">
+                            <i class="fas fa-bookmark text-sm"></i>
+                        </button>
+                        <div id="bucket-drafts-menu" class="dropdown-menu hidden" style="min-width: 280px; right: 0;">
+                            <div class="p-2 border-b border-gray-100">
+                                <p class="text-xs font-medium text-gray-500">Drafts</p>
+                            </div>
+                            <div id="bucket-drafts-list" class="max-h-[200px] overflow-y-auto">
+                                <div class="p-3 text-center text-xs text-gray-400">Loading…</div>
+                            </div>
+                            <div class="p-2 border-t border-gray-100">
+                                <button onclick="openSaveBucketDraftModal()" id="save-bucket-draft-btn" disabled
+                                    class="w-full px-3 py-1.5 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md disabled:opacity-50">
+                                    Save current selection
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search search-icon text-sm"></i>
+                        <input type="text" id="course-search-input" placeholder="Search courses…"
+                            oninput="debounceCourseSearch()" autocomplete="off">
+                        <span id="clear-course-search" class="clear-btn hidden" onclick="clearCourseSearch()">
+                            <i class="fas fa-times text-xs"></i>
+                        </span>
+                    </div>
+                </div>
+                <div class="filter-tags" id="course-filter-tags"></div>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="search" onclick="switchCourseTab('search')">
+                        Search <span id="search-count-badge" class="tab-badge bg-gray-100 text-gray-600 hidden">0</span>
+                    </div>
+                    <div class="tab" data-tab="selected" onclick="switchCourseTab('selected')">
+                        Selected <span id="selected-count-badge" class="tab-badge bg-blue-100 text-blue-700">0</span>
+                    </div>
+                </div>
+
+                <div id="course-search-tab" class="mt-3">
+                    <div id="course-search-results-header" class="hidden flex justify-between text-xs text-gray-500 mb-2">
+                        <span><span id="course-result-count">0</span> found</span>
+                        <button type="button" onclick="selectAllVisibleCourses()" class="text-blue-600 hover:text-blue-700">Select all</button>
+                    </div>
+                    <div id="course-search-results" class="space-y-1 max-h-[360px] overflow-y-auto">
+                        <p class="text-center py-6 text-sm text-gray-400">Search to add courses</p>
+                    </div>
+                </div>
+
+                <div id="course-selected-tab" class="mt-3 hidden">
+                    <div id="course-selected-list" class="space-y-1 max-h-[360px] overflow-y-auto">
+                        <p class="text-center py-6 text-sm text-gray-400">No courses selected</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Branch (optional)</label>
+                <input type="text" id="branch-codes" placeholder="e.g. A7"
+                    class="block w-full mb-3 px-3 py-2 border border-gray-200 rounded-md text-sm">
+
+                <button type="button" id="btn-generate" onclick="runBucketGeneration()"
+                    class="w-full py-2.5 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-blue-700 disabled:opacity-50">
+                    Generate buckets
+                </button>
+
+                <details class="advanced mt-3">
+                    <summary>Advanced</summary>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-0.5">Max units</label>
+                            <input type="number" id="max-units" value="25" min="1" max="50" step="0.5"
+                                class="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-0.5">Max buckets</label>
+                            <input type="number" id="max-buckets" value="500" min="1" max="5000"
+                                class="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-500 mb-0.5">Max search nodes</label>
+                            <input type="number" id="max-search-nodes" value="2000000" min="1000" max="50000000" step="1000"
+                                class="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm">
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <div class="lg:col-span-7">
+            <div id="results-empty" class="bg-white rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
+                Results appear here after generation.
+            </div>
+
+            <div id="results-panel" class="hidden space-y-3">
+                <div id="results-summary" class="bg-white rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-600"></div>
+
+                <div id="save-panel" class="hidden bg-white rounded-lg border border-gray-200 p-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Seats to save</label>
+                            <input type="number" id="save-max-total-cap" value="10" min="1"
+                                class="block w-full px-3 py-2 border border-gray-200 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Buffer plan</label>
+                            <input type="text" id="save-plan" placeholder="e.g. A7"
+                                class="block w-full px-3 py-2 border border-gray-200 rounded-md text-sm">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button type="button" onclick="saveBucketsToBuffer()"
+                            class="px-4 py-2 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">
+                            Save to buffers
+                        </button>
+                        <p id="save-preview" class="text-xs text-gray-500"></p>
+                    </div>
+                    <details class="advanced mt-3">
+                        <summary>Advanced</summary>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-0.5">Max buckets</label>
+                                <input type="number" id="save-max-buckets" value="50" min="1" max="5000"
+                                    class="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm">
+                            </div>
+                            <div class="flex items-end pb-1">
+                                <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                                    <input type="checkbox" id="save-deduct-upload" checked
+                                        class="rounded border-gray-300 text-primary">
+                                    Reserve seats on save
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+                    <p id="save-status" class="mt-2 text-xs text-amber-700 hidden"></p>
+                </div>
+
+                <div id="results-buckets" class="space-y-2"></div>
+            </div>
+
+            <div id="results-loading" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-gray-900/30">
+                <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                    <i class="fas fa-spinner fa-spin text-2xl text-primary mb-2"></i>
+                    <p class="text-sm text-gray-700">Generating…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="save-bucket-draft-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full border border-gray-200">
+        <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+            <h3 class="font-medium text-gray-900">Save draft</h3>
+            <button onclick="closeSaveBucketDraftModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-4 space-y-3">
+            <input id="bucket-draft-name" type="text" placeholder="Draft name" class="block w-full px-3 py-2 border border-gray-200 rounded-md text-sm">
+            <textarea id="bucket-draft-notes" rows="2" placeholder="Notes (optional)" class="block w-full px-3 py-2 border border-gray-200 rounded-md text-sm"></textarea>
+            <p class="text-xs text-gray-500"><span id="bucket-draft-course-count">0</span> courses selected</p>
+        </div>
+        <div class="p-4 border-t border-gray-100 flex justify-end gap-2">
+            <button onclick="closeSaveBucketDraftModal()" class="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-md">Cancel</button>
+            <button onclick="saveBucketDraft()" class="px-3 py-1.5 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sessionId = '{{ session.id }}';
+const BUCKET_SELECTION_KEY = 'augsd_timetable_bucket_selection_v1_' + sessionId;
+const BUCKET_DRAFTS_KEY = 'augsd_timetable_bucket_drafts_v1_' + sessionId;
+let allCourses = [];
+let selectedSearchTab = 'search';
+let activeSubjectFilter = 'all';
+let selectedCourseIdsSet = new Set();
+let savedBucketDrafts = [];
+let lastBucketsForSave = null;
+
+function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+
+function debounceCourseSearch() {
+    if (window.bucketCourseSearchTimer) clearTimeout(window.bucketCourseSearchTimer);
+    window.bucketCourseSearchTimer = setTimeout(renderCourseSearch, 150);
+}
+
+function clearCourseSearch() {
+    document.getElementById('course-search-input').value = '';
+    activeSubjectFilter = 'all';
+    renderCourseSearch();
+}
+
+function switchCourseTab(tab) {
+    selectedSearchTab = tab;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === tab));
+    document.getElementById('course-search-tab').classList.toggle('hidden', tab !== 'search');
+    document.getElementById('course-selected-tab').classList.toggle('hidden', tab !== 'selected');
+    if (tab === 'selected') renderSelectedCourses();
+}
+
+function setSubjectFilter(filter) {
+    activeSubjectFilter = filter;
+    renderCourseSearch();
+}
+
+function renderSubjectFilters() {
+    const tags = document.getElementById('course-filter-tags');
+    const subjects = [...new Set(allCourses.map(c => c.subject).filter(Boolean))].sort();
+    tags.innerHTML = `<span class="filter-tag ${activeSubjectFilter === 'all' ? 'active' : 'inactive'}" onclick="setSubjectFilter('all')">All</span>`
+        + subjects.map(s => `<span class="filter-tag ${activeSubjectFilter === s ? 'active' : 'inactive'}" onclick="setSubjectFilter('${s}')">${esc(s)}</span>`).join('');
+}
+
+function renderCourseSearch() {
+    const query = (document.getElementById('course-search-input').value || '').toLowerCase().trim();
+    document.getElementById('clear-course-search').classList.toggle('hidden', !query);
+    const container = document.getElementById('course-search-results');
+    const filtered = allCourses.filter(c => {
+        const hay = `${c.subject} ${c.catalog} ${c.title}`.toLowerCase();
+        return (!query || hay.includes(query)) && (activeSubjectFilter === 'all' || c.subject === activeSubjectFilter);
+    });
+    document.getElementById('course-result-count').textContent = filtered.length;
+    document.getElementById('course-search-results-header').classList.toggle('hidden', !filtered.length);
+    if (!filtered.length) {
+        container.innerHTML = '<p class="text-center py-6 text-sm text-gray-400">No matches</p>';
+        updateSelectedCount();
+        return;
+    }
+    container.innerHTML = filtered.map(c => {
+        const label = `${esc(c.subject)} ${esc(c.catalog)} — ${esc(c.title)}`;
+        const checked = selectedCourseIdsSet.has(c.id) ? 'checked' : '';
+        return `<label class="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 cursor-pointer text-sm">
+            <input type="checkbox" class="rounded border-gray-300 text-primary" value="${c.id}" onchange="toggleCourseSelected(this)" ${checked}>
+            <span class="text-gray-800 truncate">${label}</span></label>`;
+    }).join('');
+    updateSelectedCount();
+}
+
+function toggleCourseSelected(el) {
+    if (el.checked) selectedCourseIdsSet.add(el.value);
+    else selectedCourseIdsSet.delete(el.value);
+    updateSelectedCount();
+    if (selectedSearchTab === 'selected') renderSelectedCourses();
+}
+
+function selectAllVisibleCourses() {
+    document.querySelectorAll('#course-search-results input[type=checkbox]').forEach(cb => {
+        cb.checked = true;
+        selectedCourseIdsSet.add(cb.value);
+    });
+    updateSelectedCount();
+    if (selectedSearchTab === 'selected') renderSelectedCourses();
+}
+
+function restorePersistedCourseSelection() {
+    try {
+        const obj = JSON.parse(localStorage.getItem(BUCKET_SELECTION_KEY) || 'null');
+        if (!obj) return;
+        selectedCourseIdsSet = new Set(obj.course_ids || []);
+        if (obj.branch_codes) document.getElementById('branch-codes').value = obj.branch_codes;
+        updateSelectedCount();
+    } catch (_) {}
+}
+
+function updateSelectedCount() {
+    document.getElementById('selected-count-badge').textContent = selectedCourseIdsSet.size;
+    if (selectedSearchTab === 'selected') renderSelectedCourses();
+    updateSavePreview();
+}
+
+function renderSelectedCourses() {
+    const container = document.getElementById('course-selected-list');
+    const ids = selectedCourseIds();
+    if (!ids.length) {
+        container.innerHTML = '<p class="text-center py-6 text-sm text-gray-400">No courses selected</p>';
+        return;
+    }
+    container.innerHTML = ids.map(id => {
+        const c = allCourses.find(x => x.id === id);
+        if (!c) return '';
+        return `<div class="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 text-sm">
+            <span class="truncate">${esc(c.subject)} ${esc(c.catalog)}</span>
+            <button type="button" onclick="removeSelectedCourse('${c.id}')" class="text-gray-400 hover:text-red-500 ml-2"><i class="fas fa-times text-xs"></i></button>
+        </div>`;
+    }).join('');
+}
+
+function removeSelectedCourse(courseId) {
+    selectedCourseIdsSet.delete(courseId);
+    const cb = document.querySelector(`#course-search-results input[value='${courseId}']`);
+    if (cb) cb.checked = false;
+    updateSelectedCount();
+    renderSelectedCourses();
+}
+
+function selectedCourseIds() { return Array.from(selectedCourseIdsSet); }
+
+function toggleBucketDraftsMenu() {
+    const menu = document.getElementById('bucket-drafts-menu');
+    menu.classList.toggle('hidden');
+    if (!menu.classList.contains('hidden')) loadBucketDrafts();
+}
+
+function closeSaveBucketDraftModal() { document.getElementById('save-bucket-draft-modal').classList.add('hidden'); }
+
+function openSaveBucketDraftModal() {
+    if (!selectedCourseIds().length) { showToast('Select courses first.', 'warning'); return; }
+    document.getElementById('bucket-draft-name').value = '';
+    document.getElementById('bucket-draft-notes').value = '';
+    document.getElementById('bucket-draft-course-count').textContent = selectedCourseIds().length;
+    document.getElementById('save-bucket-draft-modal').classList.remove('hidden');
+}
+
+function loadBucketDrafts() {
+    try { savedBucketDrafts = JSON.parse(localStorage.getItem(BUCKET_DRAFTS_KEY) || '[]'); }
+    catch (_) { savedBucketDrafts = []; }
+    renderBucketDraftsList();
+}
+
+function renderBucketDraftsList() {
+    const container = document.getElementById('bucket-drafts-list');
+    if (!savedBucketDrafts.length) {
+        container.innerHTML = '<p class="p-3 text-center text-xs text-gray-400">No drafts</p>';
+        document.getElementById('save-bucket-draft-btn').disabled = false;
+        return;
+    }
+    container.innerHTML = savedBucketDrafts.map(d => `
+        <div class="p-2 hover:bg-gray-50 border-b border-gray-50 last:border-0 flex justify-between gap-2">
+            <div class="min-w-0 cursor-pointer" onclick="loadBucketDraft('${d.id}')">
+                <div class="text-sm font-medium truncate">${esc(d.name)}</div>
+                <div class="text-xs text-gray-400">${d.course_ids.length} courses</div>
+            </div>
+            <button onclick="event.stopPropagation(); deleteBucketDraft('${d.id}')" class="text-gray-400 hover:text-red-500"><i class="fas fa-trash-alt text-xs"></i></button>
+        </div>`).join('');
+    document.getElementById('save-bucket-draft-btn').disabled = false;
+}
+
+function saveBucketDraft() {
+    const name = document.getElementById('bucket-draft-name').value.trim();
+    const notes = document.getElementById('bucket-draft-notes').value.trim();
+    const ids = selectedCourseIds();
+    if (!name || !ids.length) { showToast('Name and courses required.', 'error'); return; }
+    savedBucketDrafts.unshift({
+        id: crypto.randomUUID?.() || 'd-' + Date.now(),
+        name, notes: notes || null, course_ids: ids, created_at: new Date().toISOString(),
+    });
+    localStorage.setItem(BUCKET_DRAFTS_KEY, JSON.stringify(savedBucketDrafts));
+    closeSaveBucketDraftModal();
+    renderBucketDraftsList();
+    showToast('Draft saved', 'success');
+}
+
+function loadBucketDraft(id) {
+    const d = savedBucketDrafts.find(x => x.id === id);
+    if (!d) return;
+    selectedCourseIdsSet = new Set(d.course_ids);
+    renderCourseSearch();
+    updateSelectedCount();
+    switchCourseTab('selected');
+    showToast('Draft loaded', 'success');
+}
+
+function deleteBucketDraft(id) {
+    if (!confirm('Delete draft?')) return;
+    savedBucketDrafts = savedBucketDrafts.filter(d => d.id !== id);
+    localStorage.setItem(BUCKET_DRAFTS_KEY, JSON.stringify(savedBucketDrafts));
+    renderBucketDraftsList();
+}
+
+async function loadCourses() {
+    const container = document.getElementById('course-search-results');
+    try {
+        const res = await api(`/api/sessions/${sessionId}/courses`);
+        if (!res?.ok) { container.innerHTML = '<p class="p-4 text-sm text-red-600">Failed to load</p>'; return; }
+        allCourses = await res.json();
+        restorePersistedCourseSelection();
+        renderSubjectFilters();
+        renderCourseSearch();
+        loadBucketDrafts();
+    } catch (_) {
+        container.innerHTML = '<p class="p-4 text-sm text-red-600">Error loading courses</p>';
+    }
+}
+
+function formatTimeVal(t) {
+    if (!t) return '';
+    if (typeof t === 'string') return formatTime(t.length >= 5 ? t.slice(0, 5) : t);
+    return String(t);
+}
+
+function branchPayload() {
+    const raw = (document.getElementById('branch-codes').value || '').trim();
+    return raw ? raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean) : null;
+}
+
+/** Mirror server apply_bucket_save_limits for save preview */
+function previewSaveSelection(buckets, target, maxBuckets) {
+    const positive = buckets.filter(b => b.capacity > 0);
+    if (!target || target < 1) return [];
+    const exact = positive.filter(b => b.capacity === target);
+    if (exact.length) return [{ capacity: target, section_ids: exact[0].section_ids }];
+    const larger = positive.filter(b => b.capacity > target).sort((a, b) => a.capacity - b.capacity);
+    if (larger.length) return [{ capacity: target, section_ids: larger[0].section_ids }];
+    const ordered = [...positive].sort((a, b) => b.capacity - a.capacity);
+    const out = [];
+    let remaining = target;
+    for (const b of ordered) {
+        if (maxBuckets && out.length >= maxBuckets) break;
+        if (remaining <= 0) break;
+        const take = Math.min(b.capacity, remaining);
+        out.push({ capacity: take, section_ids: b.section_ids });
+        remaining -= take;
+    }
+    return remaining > 0 ? [] : out;
+}
+
+function updateSavePreview() {
+    const el = document.getElementById('save-preview');
+    if (!el || !lastBucketsForSave?.buckets?.length) { if (el) el.textContent = ''; return; }
+    const target = parseInt(document.getElementById('save-max-total-cap').value, 10);
+    const maxB = parseInt(document.getElementById('save-max-buckets').value, 10);
+    if (!target || target < 1) { el.textContent = ''; return; }
+    const sel = previewSaveSelection(lastBucketsForSave.buckets, target, maxB);
+    if (!sel.length) {
+        el.textContent = `Cannot fill ${target} seats from these buckets`;
+        el.className = 'text-xs text-red-600';
+    } else {
+        const parts = sel.map((b, i) => `#${i + 1}: ${b.capacity}`).join(' + ');
+        el.textContent = `Will save ${parts} = ${sel.reduce((s, b) => s + b.capacity, 0)} seat(s)`;
+        el.className = 'text-xs text-gray-500';
+    }
+}
+
+document.getElementById('save-max-total-cap')?.addEventListener('input', updateSavePreview);
+document.getElementById('save-max-buckets')?.addEventListener('input', updateSavePreview);
+
+async function runBucketGeneration() {
+    const courseIds = selectedCourseIds();
+    if (!courseIds.length) { showToast('Select at least one course.', 'warning'); return; }
+
+    const body = {
+        course_ids: courseIds,
+        max_units: parseFloat(document.getElementById('max-units').value) || 25,
+        max_buckets: parseInt(document.getElementById('max-buckets').value, 10) || 500,
+        max_search_nodes: parseInt(document.getElementById('max-search-nodes').value, 10) || 2000000,
+    };
+    const branches = branchPayload();
+    if (branches?.length) body.branch_codes = branches;
+
+    document.getElementById('btn-generate').disabled = true;
+    document.getElementById('results-loading').classList.remove('hidden');
+
+    try {
+        const res = await api(`/api/sessions/${sessionId}/timetable-buckets/generate`, {
+            method: 'POST', body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        document.getElementById('results-loading').classList.add('hidden');
+        document.getElementById('btn-generate').disabled = false;
+        document.getElementById('results-empty').classList.add('hidden');
+        document.getElementById('results-panel').classList.remove('hidden');
+
+        if (!res.ok) {
+            document.getElementById('save-panel').classList.add('hidden');
+            lastBucketsForSave = null;
+            const msg = typeof data.detail === 'string' ? data.detail : (data.message || 'Request failed');
+            document.getElementById('results-summary').innerHTML = `<span class="text-red-600">${esc(msg)}</span>`;
+            document.getElementById('results-buckets').innerHTML = '';
+            showToast(msg, 'error');
+            return;
+        }
+
+        const trunc = data.enumeration_truncated ? ' · truncated' : '';
+        const omitted = data.buckets_omitted_zero_capacity || 0;
+        const omit = omitted ? ` · ${omitted} zero-cap omitted` : '';
+        document.getElementById('results-summary').textContent =
+            `${data.buckets_returned ?? 0} bucket(s)${trunc}${omit}`;
+
+        const wrap = document.getElementById('results-buckets');
+        if (!data.success || !data.buckets?.length) {
+            document.getElementById('save-panel').classList.add('hidden');
+            lastBucketsForSave = null;
+            wrap.innerHTML = `<p class="text-sm text-gray-500 px-1">${esc(data.message || 'No timetables found.')}</p>`;
+            return;
+        }
+
+        document.getElementById('save-panel').classList.remove('hidden');
+        lastBucketsForSave = {
+            buckets: data.buckets.map(b => ({ capacity: b.capacity, section_ids: b.section_ids || [] })),
+        };
+        updateSavePreview();
+
+        wrap.innerHTML = data.buckets.map((b, i) => {
+            const meetings = (b.meetings || []).map(m =>
+                `${esc(m.subject)} ${esc(m.catalog)} ${esc(m.component)} ${esc(m.section)} · ${esc(m.day || '')} ${formatTimeVal(m.mtg_start)}`
+            ).join('<br>');
+            return `<details class="bg-white rounded-lg border border-gray-200 text-sm">
+                <summary class="px-3 py-2 cursor-pointer flex items-center gap-2 hover:bg-gray-50">
+                    <span class="text-gray-400 text-xs">#${i + 1}</span>
+                    <span class="font-medium text-gray-900">${b.capacity} seats</span>
+                    <span class="text-gray-400 text-xs">${b.total_units ?? ''} units</span>
+                </summary>
+                <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed border-t border-gray-100 pt-2">${meetings || '—'}</div>
+            </details>`;
+        }).join('');
+
+        showToast(`${data.buckets.length} bucket(s) ready`, 'success');
+    } catch (e) {
+        document.getElementById('results-loading').classList.add('hidden');
+        document.getElementById('btn-generate').disabled = false;
+        showToast('Request failed', 'error');
+    }
+}
+
+async function saveBucketsToBuffer() {
+    if (!lastBucketsForSave?.buckets?.length) { showToast('Generate buckets first.', 'warning'); return; }
+    const plan = (document.getElementById('save-plan').value || '').trim();
+    if (!plan) { showToast('Enter a buffer plan.', 'warning'); return; }
+    const maxTot = parseInt(document.getElementById('save-max-total-cap').value, 10);
+    if (!maxTot || maxTot < 1) { showToast('Enter seats to save.', 'warning'); return; }
+
+    const statusEl = document.getElementById('save-status');
+    statusEl.classList.add('hidden');
+    const maxSaveN = parseInt(document.getElementById('save-max-buckets').value, 10);
+
+    try {
+        const body = {
+            plan,
+            buckets: lastBucketsForSave.buckets,
+            max_total_capacity: maxTot,
+            enrollment_deducted_on_upload: document.getElementById('save-deduct-upload').checked,
+        };
+        if (!Number.isNaN(maxSaveN) && maxSaveN > 0) body.max_buckets_to_save = maxSaveN;
+
+        const res = await api(`/api/sessions/${sessionId}/timetable-buckets/save`, {
+            method: 'POST', body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(typeof data.detail === 'string' ? data.detail : 'Save failed', 'error');
+            return;
+        }
+        let msg = data.message || 'Saved';
+        if (data.warnings?.length) {
+            statusEl.textContent = data.warnings.join(' ');
+            statusEl.classList.remove('hidden');
+        }
+        showToast(msg, data.success ? 'success' : 'warning');
+    } catch (_) {
+        showToast('Save failed', 'error');
+    }
+}
+
+loadCourses();
+</script>
+{% endblock %}

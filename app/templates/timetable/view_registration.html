@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}View Registration Timetable - AUGSD Portal{% endblock %}
+
+{% block head %}
+<style>
+.calendar-grid {
+    display: grid;
+    grid-template-columns: 70px repeat(6, 1fr);
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+.calendar-header {
+    background: #f9fafb;
+    padding: 0.75rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.time-slot {
+    background: #f9fafb;
+    padding: 0.5rem;
+    font-size: 0.7rem;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: center;
+}
+.calendar-cell {
+    border-bottom: 1px solid #e5e7eb;
+    border-left: 1px solid #e5e7eb;
+    min-height: 40px;
+    position: relative;
+}
+.course-block {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    padding: 4px 6px;
+    font-size: 0.65rem;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.course-block:hover {
+    transform: scale(1.02);
+    z-index: 10;
+}
+.course-block.deleted {
+    opacity: 0.5;
+    background: repeating-linear-gradient(
+        45deg,
+        #fee2e2,
+        #fee2e2 10px,
+        #fecaca 10px,
+        #fecaca 20px
+    ) !important;
+    border-left: 3px solid #dc2626 !important;
+}
+.course-block.added {
+    border-left: 3px solid #16a34a !important;
+    box-shadow: 0 0 0 2px #16a34a;
+}
+.course-color-0 { background: #dbeafe; border-left: 3px solid #2563eb; }
+.course-color-1 { background: #dcfce7; border-left: 3px solid #16a34a; }
+.course-color-2 { background: #fef3c7; border-left: 3px solid #d97706; }
+.course-color-3 { background: #ede9fe; border-left: 3px solid #7c3aed; }
+.course-color-4 { background: #fce7f3; border-left: 3px solid #db2777; }
+.course-color-5 { background: #ccfbf1; border-left: 3px solid #0d9488; }
+.course-color-6 { background: #fee2e2; border-left: 3px solid #dc2626; }
+
+/* Course details card */
+.course-detail-card {
+    transition: all 0.2s;
+}
+.course-detail-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.course-detail-card.deleted {
+    opacity: 0.6;
+    position: relative;
+}
+.course-detail-card.deleted::before {
+    content: 'DELETED';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #dc2626;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+.course-detail-card.added {
+    border: 2px solid #16a34a !important;
+    position: relative;
+}
+.course-detail-card.added::before {
+    content: 'ADDED';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #16a34a;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .calendar-grid { box-shadow: none; }
+    .print-break { page-break-after: always; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-4 no-print">
+        <a href="/sessions" class="hover:text-primary">Sessions</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}" class="hover:text-primary">{{ session.name }}</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="/session/{{ session.id }}/students" class="hover:text-primary">Students</a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900">Registration Timetable</span>
+    </div>
+
+    <!-- Student Info & Actions -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span class="text-purple-600 font-bold text-lg" id="student-initial">-</span>
+                </div>
+                <div class="ml-4">
+                    <h1 class="text-xl font-bold text-gray-900" id="student-name">Loading...</h1>
+                    <div class="flex items-center space-x-4 text-sm text-gray-600">
+                        <span id="student-campus-id">-</span>
+                        <span class="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs">
+                            <i class="fas fa-file-import mr-1"></i>Registration Data
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-2 no-print">
+                <button onclick="printTimetable()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-print mr-2"></i>Print
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Summary Banner -->
+    <div id="change-summary" class="hidden bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-6">
+                <div>
+                    <span class="text-sm text-gray-600">Added: </span>
+                    <span id="added-count" class="font-bold text-green-600">0</span>
+                </div>
+                <div>
+                    <span class="text-sm text-gray-600">Deleted: </span>
+                    <span id="deleted-count" class="font-bold text-red-600">0</span>
+                </div>
+                <div>
+                    <span class="text-sm text-gray-600">Changed: </span>
+                    <span id="changed-count" class="font-bold text-yellow-600">0</span>
+                </div>
+            </div>
+            <div class="text-sm text-gray-500">
+                <i class="fas fa-info-circle mr-1"></i>
+                Showing imported registration data with changes
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div class="p-4 border-b border-gray-200 no-print flex items-center justify-between">
+            <h2 class="font-semibold text-gray-900">Weekly Schedule</h2>
+            <div class="text-sm text-gray-500">
+                <span id="total-units" class="font-medium text-gray-900">-</span> total units
+            </div>
+        </div>
+        <div class="p-4">
+            <div id="calendar-container" class="calendar-grid">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Course Details Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div class="p-4 border-b border-gray-200 no-print">
+            <h2 class="font-semibold text-gray-900">Course Details</h2>
+            <p class="text-sm text-gray-500">Registration data with change tracking</p>
+        </div>
+        <div class="p-4">
+            <div id="course-details-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <p class="text-sm text-gray-500">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sessionId = '{{ session.id }}';
+const studentId = '{{ student_id }}';
+let timetableData = null;
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const START_HOUR = 8;
+const END_HOUR = 19;
+
+function initCalendar() {
+    const container = document.getElementById('calendar-container');
+    let html = `
+        <div class="calendar-header"></div>
+        ${DAYS.map(day => `<div class="calendar-header">${day.substring(0, 3)}</div>`).join('')}
+    `;
+
+    for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+        const time12 = hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`;
+        html += `<div class="time-slot">${time12}</div>`;
+        DAYS.forEach(day => {
+            html += `<div class="calendar-cell" data-day="${day}" data-hour="${hour}"></div>`;
+        });
+    }
+
+    container.innerHTML = html;
+}
+
+async function loadStudent() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}`);
+        if (res && res.ok) {
+            const student = await res.json();
+            document.getElementById('student-name').textContent = student.name;
+            document.getElementById('student-initial').textContent = student.name.charAt(0);
+            document.getElementById('student-campus-id').textContent = student.campus_id;
+        }
+    } catch (error) {
+        console.error('Error loading student:', error);
+    }
+}
+
+async function loadTimetable() {
+    try {
+        const res = await api(`/api/sessions/${sessionId}/students/${studentId}/registration-timetable`);
+        if (res && res.ok) {
+            timetableData = await res.json();
+            renderCalendar();
+            renderCourseDetails();
+            updateChangeSummary();
+        } else if (res && res.status === 404) {
+            document.getElementById('course-details-list').innerHTML = '<p class="text-sm text-gray-500">No registration timetable found</p>';
+        }
+    } catch (error) {
+        console.error('Error loading timetable:', error);
+        document.getElementById('course-details-list').innerHTML = '<p class="text-sm text-red-500">Error loading timetable</p>';
+    }
+}
+
+function updateChangeSummary() {
+    if (!timetableData || !timetableData.items) return;
+    
+    let addedCount = 0;
+    let deletedCount = 0;
+    let changedCount = 0;
+    
+    timetableData.items.forEach(item => {
+        if (item.added) addedCount++;
+        if (item.deleted) deletedCount++;
+        if (item.changed && !item.added && !item.deleted) changedCount++;
+    });
+    
+    if (addedCount > 0 || deletedCount > 0 || changedCount > 0) {
+        document.getElementById('change-summary').classList.remove('hidden');
+        document.getElementById('added-count').textContent = addedCount;
+        document.getElementById('deleted-count').textContent = deletedCount;
+        document.getElementById('changed-count').textContent = changedCount;
+    }
+}
+
+function renderCalendar() {
+    if (!timetableData || !timetableData.items) return;
+
+    // Clear existing blocks
+    document.querySelectorAll('.course-block').forEach(el => el.remove());
+
+    // Create color map for courses
+    const colorMap = new Map();
+    let colorIndex = 0;
+
+    // Only render non-deleted items on calendar
+    timetableData.items.filter(item => !item.deleted).forEach(item => {
+        const section = item.section;
+        if (!section) return;
+
+        const dayIndex = DAYS.indexOf(section.day);
+        if (dayIndex === -1) return;
+
+        const startTime = section.mtg_start;
+        const endTime = section.mtg_end;
+        if (!startTime || !endTime) return;
+
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const [endHour, endMin] = endTime.split(':').map(Number);
+
+        const cell = document.querySelector(`.calendar-cell[data-day="${section.day}"][data-hour="${startHour}"]`);
+        if (!cell) return;
+
+        const courseKey = item.course?.id || section.class_nbr;
+        if (!colorMap.has(courseKey)) {
+            colorMap.set(courseKey, colorIndex++ % 7);
+        }
+        const colorClass = `course-color-${colorMap.get(courseKey)}`;
+
+        const durationMinutes = (endHour - startHour) * 60 + (endMin - startMin);
+        const height = (durationMinutes / 60) * 40;
+        const top = (startMin / 60) * 40;
+
+        const course = item.course;
+        const block = document.createElement('div');
+        block.className = `course-block ${colorClass}`;
+        if (item.added) block.classList.add('added');
+        block.style.top = `${top}px`;
+        block.style.height = `${height}px`;
+        block.innerHTML = `
+            <div class="font-medium truncate">${course?.subject || ''} ${course?.catalog || ''}</div>
+            <div class="truncate opacity-75">${section.component || ''} ${section.section}</div>
+        `;
+        block.title = `${course?.subject} ${course?.catalog} - ${course?.title}\n${section.component} Section ${section.section}\n${formatTime(startTime)} - ${formatTime(endTime)}\n${section.room || 'TBA'}\n${section.instructor || 'TBA'}`;
+
+        cell.appendChild(block);
+    });
+}
+
+function renderCourseDetails() {
+    if (!timetableData || !timetableData.items) return;
+
+    const container = document.getElementById('course-details-list');
+    const courseSectionsMap = new Map();
+
+    // Group by course first, then by class_nbr
+    timetableData.items.forEach(item => {
+        const course = item.course;
+        const section = item.section;
+        if (!course || !section) return;
+        
+        const courseKey = course.id;
+        if (!courseSectionsMap.has(courseKey)) {
+            courseSectionsMap.set(courseKey, { 
+                course, 
+                classSections: new Map(),
+                isDeleted: false,
+                isAdded: false
+            });
+        }
+        
+        const courseData = courseSectionsMap.get(courseKey);
+        const classNbr = section.class_nbr;
+        
+        if (!courseData.classSections.has(classNbr)) {
+            courseData.classSections.set(classNbr, {
+                component: section.component,
+                section: section.section,
+                class_nbr: classNbr,
+                instructor: section.instructor,
+                room: section.room,
+                meetings: [],
+                isDeleted: false,
+                isAdded: false
+            });
+        }
+        
+        const classSection = courseData.classSections.get(classNbr);
+        classSection.meetings.push({ section, item });
+        
+        // Mark course as deleted if all items are deleted
+        if (item.deleted) {
+            classSection.isDeleted = classSection.meetings.every(m => m.item.deleted);
+            courseData.isDeleted = Array.from(courseData.classSections.values()).every(cs => cs.isDeleted);
+        }
+        if (item.added && !item.deleted) {
+            classSection.isAdded = true;
+            courseData.isAdded = true;
+        }
+    });
+
+    let totalUnits = 0;
+    const colors = [
+        { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100' },
+        { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', badge: 'bg-green-100' },
+        { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-100' },
+        { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100' },
+        { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', badge: 'bg-pink-100' },
+        { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', badge: 'bg-teal-100' },
+    ];
+    let colorIdx = 0;
+
+    container.innerHTML = Array.from(courseSectionsMap.values()).map(({ course, classSections, isDeleted, isAdded }) => {
+        if (!isDeleted) {
+            totalUnits += course.max_units || 0;
+        }
+        const color = colors[colorIdx++ % colors.length];
+        
+        const cardClass = isDeleted ? 'deleted' : isAdded ? 'added' : '';
+
+        return `
+            <div class="course-detail-card ${cardClass} p-4 ${color.bg} border ${color.border} rounded-xl">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <h3 class="font-bold ${color.text}">${course.subject} ${course.catalog}</h3>
+                        <p class="text-sm text-gray-600 mt-0.5">${course.title}</p>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-medium rounded ${color.badge} ${color.text}">
+                        ${course.max_units || '-'} units
+                    </span>
+                </div>
+                
+                <div class="space-y-3">
+                    ${Array.from(classSections.values()).filter(cs => !cs.isDeleted).map(classSection => {
+                        return `
+                            <div class="bg-white bg-opacity-60 rounded-lg p-3">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-semibold uppercase text-gray-500">${classSection.component}</span>
+                                    <span class="text-xs text-gray-500">Sec ${classSection.section} (Class #${classSection.class_nbr})</span>
+                                </div>
+                                <div class="space-y-1 text-sm">
+                                    <div class="flex items-center text-gray-700">
+                                        <i class="fas fa-user-tie w-5 text-gray-400"></i>
+                                        <span>${classSection.instructor || 'TBA'}</span>
+                                    </div>
+                                    ${classSection.meetings.map(({ section: s }) => `
+                                        <div class="flex items-center text-gray-700">
+                                            <i class="fas fa-clock w-5 text-gray-400"></i>
+                                            <span>${s.day || 'TBA'} ${formatTime(s.mtg_start)} - ${formatTime(s.mtg_end)}</span>
+                                        </div>
+                                        <div class="flex items-center text-gray-700">
+                                            <i class="fas fa-map-marker-alt w-5 text-gray-400"></i>
+                                            <span>${s.room || 'TBA'}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('total-units').textContent = totalUnits;
+}
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('total-units').textContent = totalUnits;
+}
+
+function printTimetable() {
+    window.print();
+}
+
+function formatTime(timeStr) {
+    if (!timeStr) return 'TBA';
+    const [hours, minutes] = timeStr.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${minutes} ${ampm}`;
+}
+
+// Initialize
+initCalendar();
+loadStudent();
+loadTimetable();
+</script>
+{% endblock %}
