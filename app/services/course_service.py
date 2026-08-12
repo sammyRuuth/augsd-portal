@@ -402,6 +402,19 @@ async def list_course_sections(db: AsyncSession) -> Sequence[CourseSection]:
     return result.scalars().all()
 
 
+async def get_offered_course_ids(session_db: AsyncSession) -> set[uuid.UUID]:
+    """
+    Ids of courses that actually have sections in this session.
+
+    The course catalog is global and uploads only ever insert or update it, so it
+    accumulates courses from every term. A course with no sections here is not on
+    offer this term and cannot be added to a timetable, so callers use this to keep
+    such courses out of pickers.
+    """
+    result = await session_db.execute(select(CourseSection.course_id).distinct())
+    return set(result.scalars().all())
+
+
 async def get_sections_by_class_nbr(
     db: AsyncSession, class_nbr: int
 ) -> Sequence[CourseSection]:

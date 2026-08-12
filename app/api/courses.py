@@ -19,6 +19,7 @@ from app.schemas.course_section import CourseSectionResponse, CourseSectionUpdat
 from app.services.course_cache_service import search_courses_cached
 from app.services.course_service import (
     get_course_by_id,
+    get_offered_course_ids,
     get_sections_by_class_nbr,
     list_course_sections,
     update_section_capacity,
@@ -67,19 +68,40 @@ async def get_courses(
     query: str | None = Query(
         None, description="Search query (e.g., 'CS F2', 'Data Structures')"
     ),
+    include_not_offered: bool = Query(
+        False,
+        description="Include catalog courses that have no sections in this session",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Search courses (global catalog) with smart multi-word support.
+    Search courses offered in this session, with smart multi-word support.
 
     Supports patterns like:
     - "CS F2" → matches CS F211, CS F213, etc.
     - "data structures" → matches title containing both words
     - "CS" → matches all CS courses
+
+    The catalog itself is global and accumulates courses from every term, so results
+    are restricted to courses that actually have sections in this session. Without
+    that filter a course from an earlier term shows up in the picker and then offers
+    no sections to choose from. Pass include_not_offered=true for the raw catalog.
     """
     courses = await search_courses_cached(db, query)
-    return [CourseResponse.model_validate(c) for c in courses]
+
+    if include_not_offered:
+        return [CourseResponse.model_validate(c) for c in courses]
+
+    session = await get_session_by_id(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    async for session_db in get_session_db_read_only(session.schema_name):
+        offered = await get_offered_course_ids(session_db)
+        return [
+            CourseResponse.model_validate(c) for c in courses if c.id in offered
+        ]
 
 
 @router.get("/sections", response_model=list[CourseSectionResponse])
